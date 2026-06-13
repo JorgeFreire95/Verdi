@@ -161,6 +161,18 @@
               <span class="error-message" id="registerPasswordError"></span>
             </div>
 
+            <div class="input-group">
+              <label for="registerConfirmPassword" class="input-label">Confirmar contraseña</label>
+              <div class="input-wrapper">
+                <i data-lucide="lock" class="input-icon"></i>
+                <input type="password" id="registerConfirmPassword" name="confirmPassword" placeholder="Confirma tu contraseña" required>
+                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
+                  <i data-lucide="eye"></i>
+                </button>
+              </div>
+              <span class="error-message" id="registerConfirmPasswordError"></span>
+            </div>
+
             <button type="submit" class="btn btn-primary" id="registerSubmitBtn">
               <span>Registrarse</span>
               <i data-lucide="user-plus"></i>
@@ -218,6 +230,17 @@
               <span class="error-message" id="profitNetGoalError"></span>
             </div>
 
+            <div class="input-group">
+              <label for="profitActiveApp" class="input-label">¿En qué aplicación trabajarás?</label>
+              <div class="input-wrapper">
+                <i data-lucide="smartphone" class="input-icon"></i>
+                <select id="profitActiveApp" name="activeApp" required>
+                  <option value="" disabled selected>Selecciona una aplicación</option>
+                </select>
+              </div>
+              <span class="error-message" id="profitActiveAppError"></span>
+            </div>
+
             <button type="submit" class="btn btn-primary" id="profitSubmitBtn">
               <span>Guardar y activar semáforo</span>
               <i data-lucide="check-circle"></i>
@@ -240,6 +263,10 @@
             <div class="status-text-group">
               <div class="status-title">Semáforo de Rentabilidad</div>
               <div class="status-desc" id="statusDesc">Operación Altamente Rentable</div>
+              <div class="active-app-status" id="dashActiveAppContainer" style="display: none; font-size: 0.8rem; color: var(--color-accent); margin-top: 4px; display: flex; align-items: center; gap: 4px;">
+                <i data-lucide="play" style="width: 12px; height: 12px; stroke-width: 3px;"></i>
+                <span>Trabajando en: <strong id="dashActiveAppName">-</strong></span>
+              </div>
             </div>
             <button type="button" class="semaforo-toggle-btn active" id="toggleSemaforoBtn">
               <i data-lucide="power"></i>
@@ -377,6 +404,112 @@
           </form>
         </section>
 
+        <!-- APPS VIEW -->
+        <section class="auth-view" id="appsView">
+          <div class="dashboard-header">
+            <button type="button" id="closeAppsBtn" class="icon-btn" aria-label="Volver al panel">
+              <i data-lucide="arrow-left"></i>
+            </button>
+            <div class="header-title">Aplicaciones</div>
+            <div style="width: 32px;"></div> <!-- Spacer -->
+          </div>
+
+          <h2 class="view-title" style="margin-top: 15px;">Aplicaciones de Trabajo</h2>
+          <p class="view-subtitle">Accede y gestiona rápidamente tus plataformas de transporte preferidas.</p>
+
+          <div class="apps-grid">
+            <div class="app-item-card">
+              <div class="app-item-left">
+                <div class="app-item-icon uber-theme">
+                  <i data-lucide="car"></i>
+                </div>
+                <div class="app-item-details">
+                  <span class="app-item-name">Uber Driver</span>
+                  <span class="app-item-desc">Plataforma líder global</span>
+                </div>
+              </div>
+              <div class="app-item-actions">
+                <button type="button" class="app-connect-btn" data-app="Uber Driver">Conectar</button>
+                <a href="https://partner.uber.com" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+            </div>
+
+            <div class="app-item-card">
+              <div class="app-item-left">
+                <div class="app-item-icon didi-theme">
+                  <i data-lucide="navigation"></i>
+                </div>
+                <div class="app-item-details">
+                  <span class="app-item-name">DiDi Conductor</span>
+                  <span class="app-item-desc">Excelentes tasas de servicio</span>
+                </div>
+              </div>
+              <div class="app-item-actions">
+                <button type="button" class="app-connect-btn" data-app="DiDi Conductor">Conectar</button>
+                <a href="https://mexico.didiglobal.com/conductor/" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+            </div>
+
+            <div class="app-item-card">
+              <div class="app-item-left">
+                <div class="app-item-icon cabify-theme">
+                  <i data-lucide="map-pin"></i>
+                </div>
+                <div class="app-item-details">
+                  <span class="app-item-name">Cabify Conductores</span>
+                  <span class="app-item-desc">Tarifas corporativas premium</span>
+                </div>
+              </div>
+              <div class="app-item-actions">
+                <button type="button" class="app-connect-btn" data-app="Cabify Conductores">Conectar</button>
+                <a href="https://cabify.com/drivers" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+            </div>
+
+            <div class="app-item-card">
+              <div class="app-item-left">
+                <div class="app-item-icon indrive-theme">
+                  <i data-lucide="dollar-sign"></i>
+                </div>
+                <div class="app-item-details">
+                  <span class="app-item-name">inDrive</span>
+                  <span class="app-item-desc">Negociación libre de tarifas</span>
+                </div>
+              </div>
+              <div class="app-item-actions">
+                <button type="button" class="app-connect-btn" data-app="inDrive">Conectar</button>
+                <a href="https://indrive.com" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+            </div>
+
+            <div class="app-item-card">
+              <div class="app-item-left">
+                <div class="app-item-icon yango-theme">
+                  <i data-lucide="navigation-2"></i>
+                </div>
+                <div class="app-item-details">
+                  <span class="app-item-name">Yango Pro</span>
+                  <span class="app-item-desc">Optimización inteligente de rutas</span>
+                </div>
+              </div>
+              <div class="app-item-actions">
+                <button type="button" class="app-connect-btn" data-app="Yango Pro">Conectar</button>
+                <a href="https://yango.com" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
+                  <i data-lucide="external-link"></i>
+                </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
       </div>
     </div>
   </div>
@@ -412,6 +545,10 @@
       <button class="menu-link" id="menuSettingsBtn">
         <i data-lucide="settings"></i>
         <span>Configuración de Perfil</span>
+      </button>
+      <button class="menu-link" id="menuAppsBtn">
+        <i data-lucide="layout-grid"></i>
+        <span>Aplicaciones</span>
       </button>
       <div class="menu-divider"></div>
       <button class="menu-link danger" id="menuLogoutBtn">

@@ -13,7 +13,9 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   fuel_efficiency NUMERIC DEFAULT 0,
   desired_net_profit NUMERIC DEFAULT 0,
   settings_configured BOOLEAN DEFAULT FALSE,
-  semaforo_active BOOLEAN DEFAULT TRUE
+  semaforo_active BOOLEAN DEFAULT TRUE,
+  connected_apps TEXT[] DEFAULT '{}',
+  active_app TEXT
 );
 
 -- 2. Habilitar la seguridad a nivel de fila (Row Level Security - RLS)

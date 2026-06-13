@@ -942,3 +942,158 @@ input[type="number"] {
     display: none; /* Reduce visual noise on tiny mobile viewports */
   }
 }
+
+/* --- Apps View Styles --- */
+.apps-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.app-item-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(22, 31, 48, 0.4);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  transition: var(--transition-smooth);
+}
+
+.app-item-card:hover {
+  background: rgba(22, 31, 48, 0.8);
+  border-color: rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.app-item-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.app-item-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.app-item-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* App Brand Themes */
+.uber-theme {
+  background: #000000;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.didi-theme {
+  background: #FF8000;
+  color: #fff;
+}
+
+.cabify-theme {
+  background: #7353BA;
+  color: #fff;
+}
+
+.indrive-theme {
+  background: #00CC66;
+  color: #fff;
+}
+
+.yango-theme {
+  background: #FF3333;
+  color: #fff;
+}
+
+.app-item-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.app-item-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-item-desc {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  margin-top: 1px;
+}
+
+.app-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-connect-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  transition: var(--transition-smooth);
+}
+
+.app-connect-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Connect Active State */
+.app-connect-btn.connected {
+  background: rgba(16, 185, 129, 0.12);
+  border-color: var(--color-primary);
+  color: var(--color-accent);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+}
+
+.app-connect-btn.connected:hover {
+  background: rgba(239, 68, 68, 0.15);
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+}
+
+.app-external-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  transition: var(--transition-smooth);
+}
+
+.app-external-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.app-external-link svg {
+  width: 14px;
+  height: 14px;
+}
+
+

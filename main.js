@@ -28,7 +28,9 @@ let currentProfileData = {
   fuel_cost: 0,
   fuel_efficiency: 0,
   desired_net_profit: 0,
-  semaforo_active: true
+  semaforo_active: true,
+  connected_apps: [],
+  active_app: ''
 };
 
 // --- DOM Elements ---
@@ -44,6 +46,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const profitabilityView = document.getElementById('profitabilityView');
   const dashboardView = document.getElementById('dashboardView');
   const settingsView = document.getElementById('settingsView');
+  const appsView = document.getElementById('appsView');
+  const profitActiveApp = document.getElementById('profitActiveApp');
+  const dashActiveAppContainer = document.getElementById('dashActiveAppContainer');
+  const dashActiveAppName = document.getElementById('dashActiveAppName');
 
   // Switch views buttons
   const switchToRegisterBtn = document.getElementById('switchToRegisterBtn');
@@ -90,10 +96,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const menuHomeBtn = document.getElementById('menuHomeBtn');
   const menuSettingsBtn = document.getElementById('menuSettingsBtn');
+  const menuAppsBtn = document.getElementById('menuAppsBtn');
   const menuLogoutBtn = document.getElementById('menuLogoutBtn');
 
   // Settings inputs
   const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const closeAppsBtn = document.getElementById('closeAppsBtn');
   const settingsCountry = document.getElementById('settingsCountry');
   const settingsCurrencySymbol = document.getElementById('settingsCurrencySymbol');
   const settingsCurrencyName = document.getElementById('settingsCurrencyName');
@@ -113,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Hide all views
-    [loginView, registerView, profitabilityView, dashboardView, settingsView].forEach(view => {
+    [loginView, registerView, profitabilityView, dashboardView, settingsView, appsView].forEach(view => {
       view.classList.remove('active');
       view.style.display = 'none';
     });
@@ -149,6 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   menuHomeBtn.addEventListener('click', () => {
     menuHomeBtn.classList.add('active');
     menuSettingsBtn.classList.remove('active');
+    menuAppsBtn.classList.remove('active');
     toggleMenu(false);
     if (currentProfileData.settings_configured) {
       switchView(dashboardView);
@@ -160,14 +169,35 @@ document.addEventListener('DOMContentLoaded', () => {
   menuSettingsBtn.addEventListener('click', () => {
     menuSettingsBtn.classList.add('active');
     menuHomeBtn.classList.remove('active');
+    menuAppsBtn.classList.remove('active');
     toggleMenu(false);
     loadProfileIntoSettings();
     switchView(settingsView);
   });
 
+  menuAppsBtn.addEventListener('click', () => {
+    menuAppsBtn.classList.add('active');
+    menuHomeBtn.classList.remove('active');
+    menuSettingsBtn.classList.remove('active');
+    toggleMenu(false);
+    switchView(appsView);
+  });
+
   closeSettingsBtn.addEventListener('click', () => {
     menuHomeBtn.classList.add('active');
     menuSettingsBtn.classList.remove('active');
+    menuAppsBtn.classList.remove('active');
+    if (currentProfileData.settings_configured) {
+      switchView(dashboardView);
+    } else {
+      switchView(profitabilityView);
+    }
+  });
+
+  closeAppsBtn.addEventListener('click', () => {
+    menuHomeBtn.classList.add('active');
+    menuSettingsBtn.classList.remove('active');
+    menuAppsBtn.classList.remove('active');
     if (currentProfileData.settings_configured) {
       switchView(dashboardView);
     } else {
@@ -292,6 +322,98 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // --- Connected Apps Handling ---
+  const renderConnectedAppsUI = () => {
+    const connectBtns = document.querySelectorAll('.app-connect-btn');
+    connectBtns.forEach(btn => {
+      const appName = btn.getAttribute('data-app');
+      const isConnected = currentProfileData.connected_apps.includes(appName);
+      if (isConnected) {
+        btn.classList.add('connected');
+        btn.textContent = 'Desconectar';
+      } else {
+        btn.classList.remove('connected');
+        btn.textContent = 'Conectar';
+      }
+    });
+  };
+
+  const populateActiveAppSelect = () => {
+    if (!profitActiveApp) return;
+    
+    // Save current selection to restore it if possible
+    const currentSelected = profitActiveApp.value;
+    
+    // Clear options except first
+    profitActiveApp.innerHTML = '<option value="" disabled selected>Selecciona una aplicación</option>';
+    
+    // If no apps are connected, list all of them but show a generic option
+    const appsToRender = currentProfileData.connected_apps.length > 0 
+      ? currentProfileData.connected_apps 
+      : ['Uber Driver', 'DiDi Conductor', 'Cabify Conductores', 'inDrive', 'Yango Pro'];
+      
+    appsToRender.forEach(app => {
+      const opt = document.createElement('option');
+      opt.value = app;
+      opt.textContent = app;
+      profitActiveApp.appendChild(opt);
+    });
+
+    // Add independent work option
+    const indepOpt = document.createElement('option');
+    indepOpt.value = 'Trabajo Independiente';
+    indepOpt.textContent = 'Trabajo Independiente / Otra';
+    profitActiveApp.appendChild(indepOpt);
+    
+    // Restore selection or select default
+    if (currentSelected && [...profitActiveApp.options].some(o => o.value === currentSelected)) {
+      profitActiveApp.value = currentSelected;
+    } else if (currentProfileData.active_app && [...profitActiveApp.options].some(o => o.value === currentProfileData.active_app)) {
+      profitActiveApp.value = currentProfileData.active_app;
+    } else {
+      profitActiveApp.value = '';
+    }
+  };
+
+  // Delegate click for connect buttons
+  document.addEventListener('click', async (e) => {
+    if (e.target && e.target.classList.contains('app-connect-btn')) {
+      const btn = e.target;
+      const appName = btn.getAttribute('data-app');
+      let connected = [...currentProfileData.connected_apps];
+      
+      if (connected.includes(appName)) {
+        connected = connected.filter(a => a !== appName);
+      } else {
+        connected.push(appName);
+      }
+      
+      currentProfileData.connected_apps = connected;
+      renderConnectedAppsUI();
+      populateActiveAppSelect();
+      
+      // Update profile database if logged in
+      if (isConfigured && currentSessionUser) {
+        try {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ connected_apps: connected })
+            .eq('id', currentSessionUser.id);
+          
+          if (error) {
+            if (error.message && error.message.includes('connected_apps')) {
+              console.warn('connected_apps column does not exist on profiles table. Working in offline/demo mode for apps list.');
+            } else {
+              throw error;
+            }
+          }
+        } catch (err) {
+          console.error('Error saving connected apps:', err);
+        }
+      }
+    }
+  });
+
   // Form Validation Utilities
   const setError = (id, message) => {
     const element = document.getElementById(id);
@@ -339,6 +461,12 @@ document.addEventListener('DOMContentLoaded', () => {
     currentProfileData.desired_net_profit = profile.desired_net_profit || 0;
     currentProfileData.semaforo_active = profile.semaforo_active !== false; // defaults to true
     currentProfileData.settings_configured = profile.settings_configured === true;
+    currentProfileData.connected_apps = profile.connected_apps || [];
+    currentProfileData.active_app = profile.active_app || '';
+
+    // Render UI states
+    renderConnectedAppsUI();
+    populateActiveAppSelect();
   };
 
   const setupProfitabilityLabels = () => {
@@ -421,6 +549,14 @@ document.addEventListener('DOMContentLoaded', () => {
       toggleSemaforoBtn.classList.add('inactive');
       toggleSemaforoBtn.classList.remove('active');
       toggleSemaforoBtn.querySelector('span').textContent = 'Encender Semáforo';
+    }
+
+    // Render active app status if semaforo is active and active_app is set
+    if (currentProfileData.semaforo_active && currentProfileData.active_app) {
+      dashActiveAppContainer.style.display = 'flex';
+      dashActiveAppName.textContent = currentProfileData.active_app;
+    } else {
+      dashActiveAppContainer.style.display = 'none';
     }
 
     if (window.lucide) {
@@ -552,6 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const country = document.getElementById('registerCountry');
     const phone = document.getElementById('registerPhone');
     const password = document.getElementById('registerPassword');
+    const confirmPassword = document.getElementById('registerConfirmPassword');
 
     // Validation
     if (!name.value.trim()) {
@@ -596,6 +733,16 @@ document.addEventListener('DOMContentLoaded', () => {
       isValid = false;
     } else {
       clearError('registerPassword');
+    }
+
+    if (!confirmPassword.value) {
+      setError('registerConfirmPassword', 'Debes confirmar la contraseña.');
+      isValid = false;
+    } else if (confirmPassword.value !== password.value) {
+      setError('registerConfirmPassword', 'Las contraseñas no coinciden.');
+      isValid = false;
+    } else {
+      clearError('registerConfirmPassword');
     }
 
     if (isValid) {
@@ -672,6 +819,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const fuelCost = document.getElementById('profitFuelCost');
     const efficiency = document.getElementById('profitEfficiency');
     const netGoal = document.getElementById('profitNetGoal');
+    const activeApp = document.getElementById('profitActiveApp');
 
     // Validation
     if (!fuelCost.value || parseFloat(fuelCost.value) <= 0) {
@@ -695,6 +843,13 @@ document.addEventListener('DOMContentLoaded', () => {
       clearError('profitNetGoal');
     }
 
+    if (!activeApp.value) {
+      setError('profitActiveApp', 'Por favor selecciona la aplicación en la que trabajarás hoy.');
+      isValid = false;
+    } else {
+      clearError('profitActiveApp');
+    }
+
     if (isValid && currentSessionUser) {
       const submitBtn = document.getElementById('profitSubmitBtn');
       const originalHtml = submitBtn.innerHTML;
@@ -711,12 +866,14 @@ document.addEventListener('DOMContentLoaded', () => {
           currentProfileData.fuel_cost = parseFloat(fuelCost.value);
           currentProfileData.fuel_efficiency = parseFloat(efficiency.value);
           currentProfileData.desired_net_profit = parseFloat(netGoal.value);
+          currentProfileData.active_app = activeApp.value;
           currentProfileData.semaforo_active = true;
           currentProfileData.settings_configured = true;
           if (userProfile) userProfile.settings_configured = true;
 
           alert(
             `¡Parámetros de Rentabilidad Configurados (Modo Demo)!\n\n` +
+            `- Aplicación Activa: ${currentProfileData.active_app}\n` +
             `- Costo Combustible: ${currentProfileData.currencySymbol}${fuelCost.value}/L\n` +
             `- Rendimiento: ${efficiency.value} ${currentProfileData.distanceUnit}/L\n` +
             `- Ganancia Neta Deseada: ${currentProfileData.currencySymbol}${netGoal.value}/${currentProfileData.distanceUnit}\n\n` +
@@ -732,16 +889,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
       submitBtn.innerHTML = `<span>Activando semáforo...</span> <div class="spinner"></div>`;
       try {
-        const { error } = await supabase
+        let updatePayload = {
+          fuel_cost: parseFloat(fuelCost.value),
+          fuel_efficiency: parseFloat(efficiency.value),
+          desired_net_profit: parseFloat(netGoal.value),
+          settings_configured: true,
+          semaforo_active: true,
+          active_app: activeApp.value
+        };
+
+        let { error } = await supabase
           .from('profiles')
-          .update({
-            fuel_cost: parseFloat(fuelCost.value),
-            fuel_efficiency: parseFloat(efficiency.value),
-            desired_net_profit: parseFloat(netGoal.value),
-            settings_configured: true,
-            semaforo_active: true
-          })
+          .update(updatePayload)
           .eq('id', currentSessionUser.id);
+
+        // Graceful retry if active_app column doesn't exist in Supabase profiles yet
+        if (error && error.message && error.message.includes('active_app')) {
+          console.warn('active_app column does not exist on profiles table, retrying without it...');
+          delete updatePayload.active_app;
+          const { error: retryError } = await supabase
+            .from('profiles')
+            .update(updatePayload)
+            .eq('id', currentSessionUser.id);
+          error = retryError;
+        }
 
         if (error) throw error;
 
@@ -749,11 +920,12 @@ document.addEventListener('DOMContentLoaded', () => {
         currentProfileData.fuel_cost = parseFloat(fuelCost.value);
         currentProfileData.fuel_efficiency = parseFloat(efficiency.value);
         currentProfileData.desired_net_profit = parseFloat(netGoal.value);
+        currentProfileData.active_app = activeApp.value;
         currentProfileData.semaforo_active = true;
         currentProfileData.settings_configured = true;
         if (userProfile) userProfile.settings_configured = true;
 
-        alert('¡Configuración guardada y semáforo de rentabilidad activado con éxito!');
+        alert(`¡Configuración guardada y semáforo de rentabilidad activado con éxito!\nTrabajando en: ${activeApp.value}`);
         
         profitabilityForm.reset();
         updateDashboardStats();
@@ -870,6 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
           document.getElementById('profitNetGoal').value = currentProfileData.desired_net_profit || '';
           menuHomeBtn.classList.add('active');
           menuSettingsBtn.classList.remove('active');
+          menuAppsBtn.classList.remove('active');
           setupProfitabilityLabels();
           
           switchView(profitabilityView);
@@ -929,6 +1102,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('profitNetGoal').value = currentProfileData.desired_net_profit || '';
         menuHomeBtn.classList.add('active');
         menuSettingsBtn.classList.remove('active');
+        menuAppsBtn.classList.remove('active');
         setupProfitabilityLabels();
         
         switchView(profitabilityView);
@@ -948,14 +1122,15 @@ document.addEventListener('DOMContentLoaded', () => {
   // Real-time input validation clearers
   const inputsToTrack = [
     'loginEmail', 'loginPassword', 
-    'registerName', 'registerEmail', 'registerPhone', 'registerPassword',
-    'profitFuelCost', 'profitEfficiency', 'profitNetGoal',
+    'registerName', 'registerEmail', 'registerPhone', 'registerPassword', 'registerConfirmPassword',
+    'profitFuelCost', 'profitEfficiency', 'profitNetGoal', 'profitActiveApp',
     'settingsPhone', 'settingsOldPassword', 'settingsPassword', 'settingsConfirmPassword'
   ];
   inputsToTrack.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', () => clearError(id));
+      el.addEventListener('change', () => clearError(id));
     }
   });
 });
