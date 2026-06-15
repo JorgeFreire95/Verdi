@@ -3,560 +3,301 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Verdi - Asistente Inteligente de Rentabilidad</title>
-  <!-- Google Fonts -->
+  <title>Verdi - Copiloto Inteligente de Rentabilidad</title>
+  <!-- Google Fonts: Inter & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <!-- Lucide Icons (via CDN for premium UI icons) -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
   <div class="app-container">
-    <!-- Background decorative elements -->
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    
-    <div class="card-wrapper">
-      <!-- Logo & Header -->
-      <header class="app-header">
-        <div class="logo-container">
-          <div class="logo-icon">
-            <i data-lucide="trending-up"></i>
-          </div>
-          <h1 class="logo-text">Verdi</h1>
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-container">
+        <svg class="logo-svg" width="32" height="32" viewBox="0 0 100 100" style="filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.45));">
+          <circle cx="50" cy="50" r="46" fill="url(#logo-glass-grad)" stroke="#10b981" stroke-width="3"/>
+          <rect x="36" y="20" width="28" height="60" rx="14" fill="#0d0e12" stroke="#252733" stroke-width="2"/>
+          <circle cx="50" cy="30" r="6" fill="#ef4444"/>
+          <circle cx="50" cy="50" r="6" fill="#f59e0b"/>
+          <circle cx="50" cy="70" r="6" fill="#10b981"/>
+          <defs>
+            <radialGradient id="logo-glass-grad" cx="50%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#042c18"/>
+            </radialGradient>
+          </defs>
+        </svg>
+        <div class="logo-text">
+          <h1>VERDI</h1>
+          <p class="subtitle">Copiloto de Rentabilidad</p>
         </div>
-        <p class="tagline">Maximiza tus ganancias al volante</p>
-      </header>
+      </div>
+      <div class="connection-badge" id="service-badge">
+        <span class="badge-dot"></span>
+        <span class="badge-text" id="service-status-text">Servicio Inactivo</span>
+      </div>
+    </header>
 
-      <!-- Auth Container -->
-      <div class="auth-container" id="authContainer">
+    <!-- Main Content Area -->
+    <main class="app-main">
+      
+      <!-- TAB: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-content active">
+        <!-- Status Cards -->
+        <div class="section-title">
+          <i data-lucide="shield-check"></i>
+          <h2>Estado del Sistema</h2>
+        </div>
         
-        <!-- LOGIN VIEW -->
-        <section class="auth-view active" id="loginView">
-          <h2 class="view-title">Bienvenido de nuevo</h2>
-          <p class="view-subtitle">Ingresa tus credenciales para acceder a tu panel de control.</p>
-
-          <form id="loginForm" class="auth-form" novalidate>
-            <div class="input-group">
-              <label for="loginEmail" class="input-label">Correo electrónico</label>
-              <div class="input-wrapper">
-                <i data-lucide="mail" class="input-icon"></i>
-                <input type="email" id="loginEmail" name="email" placeholder="ejemplo@correo.com" required>
-              </div>
-              <span class="error-message" id="loginEmailError"></span>
+        <div class="status-grid">
+          <div class="status-card" id="card-overlay">
+            <div class="card-icon"><i data-lucide="layers"></i></div>
+            <div class="card-details">
+              <h3>Burbuja Flotante</h3>
+              <p class="status-desc" id="status-overlay-desc">Requiere permiso de dibujo</p>
             </div>
-
-            <div class="input-group">
-              <div class="label-row">
-                <label for="loginPassword" class="input-label">Contraseña</label>
-                <a href="#" class="forgot-password-link">¿Olvidaste tu contraseña?</a>
-              </div>
-              <div class="input-wrapper">
-                <i data-lucide="lock" class="input-icon"></i>
-                <input type="password" id="loginPassword" name="password" placeholder="••••••••" required>
-                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
-                  <i data-lucide="eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="loginPasswordError"></span>
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="loginSubmitBtn">
-              <span>Iniciar Sesión</span>
-              <i data-lucide="arrow-right"></i>
-            </button>
-          </form>
-
-          <div class="auth-switch">
-            ¿No tienes cuenta? <button id="switchToRegisterBtn" class="link-btn">Regístrate aquí</button>
-          </div>
-        </section>
-
-        <!-- REGISTER VIEW -->
-        <section class="auth-view" id="registerView">
-          <h2 class="view-title">Crea tu cuenta</h2>
-          <p class="view-subtitle">Únete a la comunidad de conductores inteligentes.</p>
-
-          <form id="registerForm" class="auth-form" novalidate>
-            
-            <div class="input-group">
-              <label for="registerName" class="input-label">Nombre completo</label>
-              <div class="input-wrapper">
-                <i data-lucide="user" class="input-icon"></i>
-                <input type="text" id="registerName" name="name" placeholder="Juan Pérez" required>
-              </div>
-              <span class="error-message" id="registerNameError"></span>
-            </div>
-
-            <div class="input-group">
-              <label for="registerEmail" class="input-label">Correo electrónico</label>
-              <div class="input-wrapper">
-                <i data-lucide="mail" class="input-icon"></i>
-                <input type="email" id="registerEmail" name="email" placeholder="juan@ejemplo.com" required>
-              </div>
-              <span class="error-message" id="registerEmailError"></span>
-            </div>
-
-            <div class="form-row">
-              <div class="input-group">
-                <label for="registerCountry" class="input-label">País de procedencia</label>
-                <div class="input-wrapper">
-                  <i data-lucide="globe" class="input-icon"></i>
-                  <select id="registerCountry" name="country" required>
-                    <option value="" disabled selected>Selecciona un país</option>
-                    <option value="AR">Argentina</option>
-                    <option value="BR">Brasil</option>
-                    <option value="CA">Canadá</option>
-                    <option value="CL">Chile</option>
-                    <option value="CO">Colombia</option>
-                    <option value="ES">España</option>
-                    <option value="MX">México</option>
-                    <option value="PE">Perú</option>
-                    <option value="UK">Reino Unido</option>
-                    <option value="US">Estados Unidos</option>
-                  </select>
-                </div>
-                <span class="error-message" id="registerCountryError"></span>
-              </div>
-            </div>
-
-            <!-- Auto-detected configuration display -->
-            <div class="auto-config-panel hidden" id="autoConfigPanel">
-              <div class="config-item">
-                <span class="config-label">Moneda nacional</span>
-                <div class="config-value" id="currencyDisplay">
-                  <span class="badge badge-currency" id="currencySymbol">-</span>
-                  <span id="currencyName">Detectando...</span>
-                </div>
-              </div>
-              <div class="config-item">
-                <span class="config-label">Unidad de distancia</span>
-                <div class="config-value" id="distanceDisplay">
-                  <span class="badge badge-unit" id="distanceUnit">-</span>
-                  <span id="distanceUnitLabel">Detectando...</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="input-group">
-              <label for="registerPhone" class="input-label">Número celular</label>
-              <div class="input-wrapper">
-                <span class="phone-prefix" id="phonePrefix">+--</span>
-                <input type="tel" id="registerPhone" name="phone" placeholder="987 654 321" required>
-              </div>
-              <span class="error-message" id="registerPhoneError"></span>
-            </div>
-
-            <div class="input-group">
-              <label for="registerPassword" class="input-label">Contraseña</label>
-              <div class="input-wrapper">
-                <i data-lucide="lock" class="input-icon"></i>
-                <input type="password" id="registerPassword" name="password" placeholder="Mínimo 8 caracteres" required>
-                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
-                  <i data-lucide="eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="registerPasswordError"></span>
-            </div>
-
-            <div class="input-group">
-              <label for="registerConfirmPassword" class="input-label">Confirmar contraseña</label>
-              <div class="input-wrapper">
-                <i data-lucide="lock" class="input-icon"></i>
-                <input type="password" id="registerConfirmPassword" name="confirmPassword" placeholder="Confirma tu contraseña" required>
-                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
-                  <i data-lucide="eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="registerConfirmPasswordError"></span>
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="registerSubmitBtn">
-              <span>Registrarse</span>
-              <i data-lucide="user-plus"></i>
-            </button>
-          </form>
-
-          <div class="auth-switch">
-            ¿Ya tienes cuenta? <button id="switchToLoginBtn" class="link-btn">Inicia sesión</button>
-          </div>
-        </section>
-
-        <!-- PROFITABILITY VIEW -->
-        <section class="auth-view" id="profitabilityView">
-          <div class="dashboard-header">
-            <button type="button" id="openMenuBtnProfit" class="icon-btn" aria-label="Abrir menú">
-              <i data-lucide="menu"></i>
-            </button>
-            <div class="header-title">Configurar Semáforo</div>
-            <div class="user-avatar" id="avatarNameProfit">U</div>
+            <button class="btn-toggle" id="btn-toggle-overlay">Otorgar</button>
           </div>
 
-          <h2 class="view-title" style="margin-top: 15px;">Configuración de Rentabilidad</h2>
-          <p class="view-subtitle">Establece tus parámetros operativos para calcular tus ganancias en tiempo real.</p>
-
-          <form id="profitabilityForm" class="auth-form" novalidate>
-            
-            <div class="input-group">
-              <label for="profitFuelCost" class="input-label">Costo de combustible</label>
-              <div class="input-wrapper">
-                <i data-lucide="fuel" class="input-icon"></i>
-                <input type="number" id="profitFuelCost" name="fuelCost" placeholder="0.00" step="0.01" min="0" required>
-                <span class="input-suffix-badge" id="fuelCostSuffix">$/L</span>
-              </div>
-              <span class="error-message" id="profitFuelCostError"></span>
+          <div class="status-card" id="card-accessibility">
+            <div class="card-icon"><i data-lucide="eye"></i></div>
+            <div class="card-details">
+              <h3>Lectura de Pantalla</h3>
+              <p class="status-desc" id="status-accessibility-desc">Requiere servicio accesibilidad</p>
             </div>
-
-            <div class="input-group">
-              <label for="profitEfficiency" class="input-label">Rendimiento de tu auto</label>
-              <div class="input-wrapper">
-                <i data-lucide="gauge" class="input-icon"></i>
-                <input type="number" id="profitEfficiency" name="efficiency" placeholder="0.0" step="0.1" min="0" required>
-                <span class="input-suffix-badge" id="efficiencySuffix">km/L</span>
-              </div>
-              <span class="error-message" id="profitEfficiencyError"></span>
-            </div>
-
-            <div class="input-group highlight-group">
-              <label for="profitNetGoal" class="input-label highlight-label">Tu ganancia neta deseada</label>
-              <div class="input-wrapper">
-                <i data-lucide="dollar-sign" class="input-icon highlight-icon"></i>
-                <input type="number" id="profitNetGoal" name="netGoal" placeholder="0.00" step="0.01" min="0" required class="highlight-input">
-                <span class="input-suffix-badge highlight-badge" id="netGoalSuffix">$/km</span>
-              </div>
-              <p class="input-hint">Este es el parámetro principal de Verdi para optimizar tus viajes.</p>
-              <span class="error-message" id="profitNetGoalError"></span>
-            </div>
-
-            <div class="input-group">
-              <label for="profitActiveApp" class="input-label">¿En qué aplicación trabajarás?</label>
-              <div class="input-wrapper">
-                <i data-lucide="smartphone" class="input-icon"></i>
-                <select id="profitActiveApp" name="activeApp" required>
-                  <option value="" disabled selected>Selecciona una aplicación</option>
-                </select>
-              </div>
-              <span class="error-message" id="profitActiveAppError"></span>
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="profitSubmitBtn">
-              <span>Guardar y activar semáforo</span>
-              <i data-lucide="check-circle"></i>
-            </button>
-          </form>
-        </section>
-
-        <!-- DASHBOARD VIEW -->
-        <section class="auth-view" id="dashboardView">
-          <div class="dashboard-header">
-            <button type="button" id="openMenuBtn" class="icon-btn" aria-label="Abrir menú">
-              <i data-lucide="menu"></i>
-            </button>
-            <div class="header-title">Panel Principal</div>
-            <div class="user-avatar" id="avatarName">U</div>
+            <button class="btn-toggle" id="btn-toggle-accessibility">Otorgar</button>
           </div>
-
-          <div class="status-card" id="statusCard">
-            <div class="status-indicator-dot green" id="statusDot"></div>
-            <div class="status-text-group">
-              <div class="status-title">Semáforo de Rentabilidad</div>
-              <div class="status-desc" id="statusDesc">Operación Altamente Rentable</div>
-              <div class="active-app-status" id="dashActiveAppContainer" style="display: none; font-size: 0.8rem; color: var(--color-accent); margin-top: 4px; display: flex; align-items: center; gap: 4px;">
-                <i data-lucide="play" style="width: 12px; height: 12px; stroke-width: 3px;"></i>
-                <span>Trabajando en: <strong id="dashActiveAppName">-</strong></span>
-              </div>
-            </div>
-            <button type="button" class="semaforo-toggle-btn active" id="toggleSemaforoBtn">
-              <i data-lucide="power"></i>
-              <span>Apagar Semáforo</span>
-            </button>
-          </div>
-
-          <div class="stats-grid">
-            <div class="stat-card highlight-stat">
-              <span class="stat-label">Ganancia Neta Deseada</span>
-              <div class="stat-value" id="dashNetGoal">-</div>
-              <span class="stat-meta" id="dashNetGoalUnit">/ km</span>
-            </div>
-
-            <div class="stat-card">
-              <span class="stat-label">Combustible</span>
-              <div class="stat-value" id="dashFuelCost">-</div>
-              <span class="stat-meta" id="dashFuelCostUnit">/ Litro</span>
-            </div>
-
-            <div class="stat-card">
-              <span class="stat-label">Rendimiento Auto</span>
-              <div class="stat-value" id="dashEfficiency">-</div>
-              <span class="stat-meta" id="dashEfficiencyUnit">km / L</span>
-            </div>
-          </div>
-
-          <div class="welcome-box">
-            <p>Tu asistente **Verdi** está analizando los viajes disponibles en segundo plano. Te notificaremos cuando encontremos viajes que cumplan tus metas.</p>
-          </div>
-        </section>
-
-        <!-- SETTINGS VIEW -->
-        <section class="auth-view" id="settingsView">
-          <div class="dashboard-header">
-            <button type="button" id="closeSettingsBtn" class="icon-btn" aria-label="Volver al panel">
-              <i data-lucide="arrow-left"></i>
-            </button>
-            <div class="header-title">Configuración</div>
-            <div style="width: 32px;"></div> <!-- Spacer -->
-          </div>
-
-          <form id="settingsForm" class="auth-form" novalidate>
-            <h3 class="settings-section-title">Datos del Perfil</h3>
-
-            <div class="input-group">
-              <label for="settingsCountry" class="input-label">País de procedencia</label>
-              <div class="input-wrapper">
-                <i data-lucide="globe" class="input-icon"></i>
-                <select id="settingsCountry" name="country" required>
-                  <option value="AR">Argentina</option>
-                  <option value="BR">Brasil</option>
-                  <option value="CA">Canadá</option>
-                  <option value="CL">Chile</option>
-                  <option value="CO">Colombia</option>
-                  <option value="ES">España</option>
-                  <option value="MX">México</option>
-                  <option value="PE">Perú</option>
-                  <option value="UK">Reino Unido</option>
-                  <option value="US">Estados Unidos</option>
-                </select>
-              </div>
-              <span class="error-message" id="settingsCountryError"></span>
-            </div>
-
-            <!-- Auto-detected configuration display -->
-            <div class="auto-config-panel" id="settingsConfigPanel">
-              <div class="config-item">
-                <span class="config-label">Moneda nacional</span>
-                <div class="config-value">
-                  <span class="badge badge-currency" id="settingsCurrencySymbol">-</span>
-                  <span id="settingsCurrencyName">Detectando...</span>
-                </div>
-              </div>
-              <div class="config-item">
-                <span class="config-label">Distancia</span>
-                <div class="config-value">
-                  <span class="badge badge-unit" id="settingsDistanceUnit">-</span>
-                  <span id="settingsDistanceUnitLabel">Detectando...</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="input-group">
-              <label for="settingsPhone" class="input-label">Número celular</label>
-              <div class="input-wrapper">
-                <span class="phone-prefix" id="settingsPhonePrefix">+--</span>
-                <input type="tel" id="settingsPhone" name="phone" placeholder="987 654 321" required>
-              </div>
-              <span class="error-message" id="settingsPhoneError"></span>
-            </div>
-
-            <h3 class="settings-section-title" style="margin-top: 10px;">Seguridad</h3>
-
-            <div class="input-group">
-              <label for="settingsOldPassword" class="input-label">Contraseña anterior (requerida para cambiar contraseña)</label>
-              <div class="input-wrapper">
-                <i data-lucide="lock" class="input-icon"></i>
-                <input type="password" id="settingsOldPassword" name="oldPassword" placeholder="Contraseña actual">
-                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
-                  <i data-lucide="eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="settingsOldPasswordError"></span>
-            </div>
-
-            <div class="input-group">
-              <label for="settingsPassword" class="input-label">Nueva contraseña</label>
-              <div class="input-wrapper">
-                <i data-lucide="lock" class="input-icon"></i>
-                <input type="password" id="settingsPassword" name="password" placeholder="Mínimo 8 caracteres">
-                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
-                  <i data-lucide="eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="settingsPasswordError"></span>
-            </div>
-
-            <div class="input-group">
-              <label for="settingsConfirmPassword" class="input-label">Repetir nueva contraseña</label>
-              <div class="input-wrapper">
-                <i data-lucide="lock" class="input-icon"></i>
-                <input type="password" id="settingsConfirmPassword" name="confirmPassword" placeholder="Confirma nueva contraseña">
-                <button type="button" class="toggle-password-btn" aria-label="Mostrar contraseña">
-                  <i data-lucide="eye"></i>
-                </button>
-              </div>
-              <span class="error-message" id="settingsConfirmPasswordError"></span>
-            </div>
-
-            <button type="submit" class="btn btn-primary" id="settingsSubmitBtn">
-              <span>Guardar Cambios</span>
-              <i data-lucide="save"></i>
-            </button>
-          </form>
-        </section>
-
-        <!-- APPS VIEW -->
-        <section class="auth-view" id="appsView">
-          <div class="dashboard-header">
-            <button type="button" id="closeAppsBtn" class="icon-btn" aria-label="Volver al panel">
-              <i data-lucide="arrow-left"></i>
-            </button>
-            <div class="header-title">Aplicaciones</div>
-            <div style="width: 32px;"></div> <!-- Spacer -->
-          </div>
-
-          <h2 class="view-title" style="margin-top: 15px;">Aplicaciones de Trabajo</h2>
-          <p class="view-subtitle">Accede y gestiona rápidamente tus plataformas de transporte preferidas.</p>
-
-          <div class="apps-grid">
-            <div class="app-item-card">
-              <div class="app-item-left">
-                <div class="app-item-icon uber-theme">
-                  <i data-lucide="car"></i>
-                </div>
-                <div class="app-item-details">
-                  <span class="app-item-name">Uber Driver</span>
-                  <span class="app-item-desc">Plataforma líder global</span>
-                </div>
-              </div>
-              <div class="app-item-actions">
-                <button type="button" class="app-connect-btn" data-app="Uber Driver">Conectar</button>
-                <a href="https://partner.uber.com" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
-                  <i data-lucide="external-link"></i>
-                </a>
-              </div>
-            </div>
-
-            <div class="app-item-card">
-              <div class="app-item-left">
-                <div class="app-item-icon didi-theme">
-                  <i data-lucide="navigation"></i>
-                </div>
-                <div class="app-item-details">
-                  <span class="app-item-name">DiDi Conductor</span>
-                  <span class="app-item-desc">Excelentes tasas de servicio</span>
-                </div>
-              </div>
-              <div class="app-item-actions">
-                <button type="button" class="app-connect-btn" data-app="DiDi Conductor">Conectar</button>
-                <a href="https://mexico.didiglobal.com/conductor/" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
-                  <i data-lucide="external-link"></i>
-                </a>
-              </div>
-            </div>
-
-            <div class="app-item-card">
-              <div class="app-item-left">
-                <div class="app-item-icon cabify-theme">
-                  <i data-lucide="map-pin"></i>
-                </div>
-                <div class="app-item-details">
-                  <span class="app-item-name">Cabify Conductores</span>
-                  <span class="app-item-desc">Tarifas corporativas premium</span>
-                </div>
-              </div>
-              <div class="app-item-actions">
-                <button type="button" class="app-connect-btn" data-app="Cabify Conductores">Conectar</button>
-                <a href="https://cabify.com/drivers" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
-                  <i data-lucide="external-link"></i>
-                </a>
-              </div>
-            </div>
-
-            <div class="app-item-card">
-              <div class="app-item-left">
-                <div class="app-item-icon indrive-theme">
-                  <i data-lucide="dollar-sign"></i>
-                </div>
-                <div class="app-item-details">
-                  <span class="app-item-name">inDrive</span>
-                  <span class="app-item-desc">Negociación libre de tarifas</span>
-                </div>
-              </div>
-              <div class="app-item-actions">
-                <button type="button" class="app-connect-btn" data-app="inDrive">Conectar</button>
-                <a href="https://indrive.com" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
-                  <i data-lucide="external-link"></i>
-                </a>
-              </div>
-            </div>
-
-            <div class="app-item-card">
-              <div class="app-item-left">
-                <div class="app-item-icon yango-theme">
-                  <i data-lucide="navigation-2"></i>
-                </div>
-                <div class="app-item-details">
-                  <span class="app-item-name">Yango Pro</span>
-                  <span class="app-item-desc">Optimización inteligente de rutas</span>
-                </div>
-              </div>
-              <div class="app-item-actions">
-                <button type="button" class="app-connect-btn" data-app="Yango Pro">Conectar</button>
-                <a href="https://yango.com" target="_blank" rel="noopener noreferrer" class="app-external-link" title="Abrir App">
-                  <i data-lucide="external-link"></i>
-                </a>
-              </div>
-            </div>
-          </div>
-        </section>
-
-      </div>
-    </div>
-  </div>
-
-  <!-- SIDE MENU DRAWER -->
-  <div class="menu-backdrop" id="menuBackdrop"></div>
-  <aside class="side-menu" id="sideMenu">
-    <div class="menu-header">
-      <div class="menu-logo">
-        <div class="logo-icon small">
-          <i data-lucide="trending-up"></i>
         </div>
-        <span class="menu-logo-text">Verdi</span>
-      </div>
-      <button type="button" id="closeMenuBtn" class="icon-btn" aria-label="Cerrar menú">
-        <i data-lucide="x"></i>
-      </button>
-    </div>
 
-    <div class="menu-user-info">
-      <div class="user-avatar large" id="menuAvatar">U</div>
-      <div class="user-details">
-        <div class="user-name" id="menuUserName">Conductor</div>
-        <div class="user-email" id="menuUserEmail">correo@ejemplo.com</div>
-      </div>
-    </div>
+        <!-- Realtime Traffic Light Preview -->
+        <div class="section-title">
+          <i data-lucide="activity"></i>
+          <h2>Semáforo de Oferta Actual</h2>
+        </div>
+        
+        <div class="traffic-light-preview graphite" id="live-traffic-light">
+          <div class="logo-traffic-light">
+            <div class="light red" id="light-red"></div>
+            <div class="light yellow" id="light-yellow"></div>
+            <div class="light green" id="light-green">
+              <!-- Hidden fallback to prevent main.js reference errors -->
+              <span id="live-bubble-text" style="display: none;">🔘</span>
+            </div>
+          </div>
+          <div class="light-details">
+            <h3 id="live-status-title">Estado Grafito</h3>
+            <p id="live-status-desc">Escaneando pantalla... Esperando ofertas de viaje de Uber, DiDi o Cabify.</p>
+            <div class="live-metrics" id="live-metrics-container" style="display: none;">
+              <span class="metric-tag price" id="live-metric-price">$0</span>
+              <span class="metric-tag dist" id="live-metric-dist">0 km</span>
+              <span class="metric-tag profit" id="live-metric-profit">$0 netos</span>
+            </div>
+          </div>
+        </div>
 
-    <nav class="menu-nav">
-      <button class="menu-link active" id="menuHomeBtn">
-        <i data-lucide="home"></i>
-        <span>Inicio / Panel</span>
+        <!-- Profit Summary -->
+        <div class="section-title">
+          <i data-lucide="trending-up"></i>
+          <h2>Resumen del Turno</h2>
+        </div>
+        <div class="stats-row">
+          <div class="stat-box">
+            <span class="stat-label">Viajes Analizados</span>
+            <span class="stat-value" id="stats-total">0</span>
+          </div>
+          <div class="stat-box green">
+            <span class="stat-label">Rentables (Verde)</span>
+            <span class="stat-value" id="stats-green">0</span>
+          </div>
+          <div class="stat-box red">
+            <span class="stat-label">Poco Rentables</span>
+            <span class="stat-value" id="stats-red">0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB: SETTINGS -->
+      <section id="tab-settings" class="tab-content">
+        <div class="section-title">
+          <i data-lucide="sliders"></i>
+          <h2>Configuración de Costos</h2>
+        </div>
+
+        <form id="costs-form" class="settings-form">
+          <!-- Regional Settings -->
+          <div class="form-group-row">
+            <div class="form-group">
+              <label for="currency"><i data-lucide="coins"></i> Moneda</label>
+              <select id="currency">
+                <option value="CLP">CLP ($)</option>
+                <option value="USD">USD ($)</option>
+                <option value="COP">COP ($)</option>
+                <option value="MXN">MXN ($)</option>
+                <option value="EUR">EUR (€)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="unit-distance"><i data-lucide="map-pin"></i> Distancia</label>
+              <select id="unit-distance">
+                <option value="km">Kilómetros (km)</option>
+                <option value="mi">Millas (mi)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group-row">
+            <div class="form-group">
+              <label for="unit-fuel"><i data-lucide="droplet"></i> Combustible</label>
+              <select id="unit-fuel">
+                <option value="L">Litros (L)</option>
+                <option value="Gal">Galones (Gal)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="unit-consumption"><i data-lucide="gauge"></i> Rendimiento</label>
+              <select id="unit-consumption">
+                <option value="km_l">KM / L</option>
+                <option value="mpg">Millas / Galón</option>
+              </select>
+            </div>
+          </div>
+
+          <hr class="form-divider">
+
+          <!-- Core parameters -->
+          <div class="form-group">
+            <div class="label-info">
+              <label for="fuel-price"><i data-lucide="dollar-sign"></i> Precio del Combustible</label>
+              <span class="range-value" id="val-fuel-price">1200</span>
+            </div>
+            <input type="range" id="fuel-price" min="500" max="3000" step="10" value="1200">
+          </div>
+
+          <div class="form-group">
+            <div class="label-info">
+              <label for="vehicle-efficiency"><i data-lucide="zap"></i> Rendimiento del Vehículo</label>
+              <span class="range-value" id="val-efficiency">12.0</span>
+            </div>
+            <input type="range" id="vehicle-efficiency" min="5" max="30" step="0.5" value="12.0">
+          </div>
+
+          <div class="form-group">
+            <div class="label-info">
+              <label for="min-earnings"><i data-lucide="clock"></i> Ganancia Deseada (por Hora)</label>
+              <span class="range-value" id="val-min-earnings">15000</span>
+            </div>
+            <input type="range" id="min-earnings" min="2000" max="40000" step="500" value="15000">
+          </div>
+
+          <div class="form-group">
+            <div class="label-info">
+              <label for="min-per-dist"><i data-lucide="navigation"></i> Ganancia Mínima (por Distancia)</label>
+              <span class="range-value" id="val-min-per-dist">350</span>
+            </div>
+            <input type="range" id="min-per-dist" min="50" max="2000" step="10" value="350">
+          </div>
+
+          <button type="submit" class="btn-primary" id="btn-save-settings">
+            <i data-lucide="save"></i> Guardar Configuraciones
+          </button>
+        </form>
+      </section>
+
+      <!-- TAB: SIMULATOR & LOGS -->
+      <section id="tab-simulator" class="tab-content">
+        <div class="grid-two-columns">
+          
+          <!-- Test Simulator -->
+          <div class="panel-card">
+            <div class="section-title">
+              <i data-lucide="terminal"></i>
+              <h2>Simulador de Viaje</h2>
+            </div>
+            
+            <form id="simulator-form" class="settings-form">
+              <div class="form-group">
+                <label for="sim-price">Precio de la Oferta ($)</label>
+                <input type="number" id="sim-price" value="8500" required>
+              </div>
+              
+              <div class="form-group">
+                <label for="sim-distance">Distancia del Viaje (<span class="lbl-dist-unit">km</span>)</label>
+                <input type="number" id="sim-distance" step="0.1" value="7.2" required>
+              </div>
+              
+              <div class="form-group">
+                <label for="sim-time">Tiempo Estimado (minutos)</label>
+                <input type="number" id="sim-time" value="15" required>
+              </div>
+              
+              <button type="button" class="btn-primary" id="btn-run-simulation">
+                <i data-lucide="play"></i> Simular Análisis
+              </button>
+            </form>
+
+            <div class="simulator-result-box graphite" id="sim-result-card">
+              <div class="sim-light-color" id="sim-result-light"></div>
+              <div class="sim-result-details">
+                <h4 id="sim-result-title">Resultados de Simulación</h4>
+                <div class="sim-metrics-grid">
+                  <div class="sim-metric">
+                    <span class="sm-label">Combustible</span>
+                    <span class="sm-val" id="sim-res-fuel">$0</span>
+                  </div>
+                  <div class="sim-metric">
+                    <span class="sm-label">Ganancia Neta</span>
+                    <span class="sm-val" id="sim-res-net">$0</span>
+                  </div>
+                  <div class="sim-metric">
+                    <span class="sm-label">Tasa Horaria</span>
+                    <span class="sm-val" id="sim-res-hourly">$0/hr</span>
+                  </div>
+                  <div class="sim-metric">
+                    <span class="sm-label">Decisión</span>
+                    <span class="sm-val" id="sim-res-decision">Pendiente</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trip History Logs -->
+          <div class="panel-card">
+            <div class="section-title">
+              <i data-lucide="history"></i>
+              <h2>Historial del Turno</h2>
+            </div>
+            <div class="history-list-wrapper">
+              <ul class="history-list" id="history-container">
+                <li class="empty-history">No hay viajes capturados aún en este turno.</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="app-nav">
+      <button class="nav-item active" data-tab="tab-dashboard">
+        <i data-lucide="layout-dashboard"></i>
+        <span>Panel</span>
       </button>
-      <button class="menu-link" id="menuSettingsBtn">
-        <i data-lucide="settings"></i>
-        <span>Configuración de Perfil</span>
+      <button class="nav-item" data-tab="tab-settings">
+        <i data-lucide="sliders"></i>
+        <span>Costos</span>
       </button>
-      <button class="menu-link" id="menuAppsBtn">
-        <i data-lucide="layout-grid"></i>
-        <span>Aplicaciones</span>
-      </button>
-      <div class="menu-divider"></div>
-      <button class="menu-link danger" id="menuLogoutBtn">
-        <i data-lucide="log-out"></i>
-        <span>Cerrar Sesión</span>
+      <button class="nav-item" data-tab="tab-simulator">
+        <i data-lucide="calculator"></i>
+        <span>Simulador</span>
       </button>
     </nav>
-  </aside>
+  </div>
 
   <script type="module" src="./main.js"></script>
 </body>

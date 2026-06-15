@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Verdi</string>
+    <string name="title_activity_main">Verdi</string>
+    <string name="package_name">com.verdi.app</string>
+    <string name="custom_url_scheme">com.verdi.app</string>
+</resources>

@@ -1,1136 +1,544 @@
-import { supabase, isConfigured } from './supabase.js';
+// Import Capacitor core utilities
+import { registerPlugin } from '@capacitor/core';
 
-// --- Country Mapping Config ---
-const countryConfig = {
-  AR: { currency: 'ARS', currencySymbol: '$', currencyName: 'Peso Argentino', unit: 'km', unitLabel: 'Kilómetros', prefix: '+54' },
-  BR: { currency: 'BRL', currencySymbol: 'R$', currencyName: 'Real Brasileño', unit: 'km', unitLabel: 'Kilómetros', prefix: '+55' },
-  CA: { currency: 'CAD', currencySymbol: '$', currencyName: 'Dólar Canadiense', unit: 'km', unitLabel: 'Kilómetros', prefix: '+1' },
-  CL: { currency: 'CLP', currencySymbol: '$', currencyName: 'Peso Chileno', unit: 'km', unitLabel: 'Kilómetros', prefix: '+56' },
-  CO: { currency: 'COP', currencySymbol: '$', currencyName: 'Peso Colombiano', unit: 'km', unitLabel: 'Kilómetros', prefix: '+57' },
-  ES: { currency: 'EUR', currencySymbol: '€', currencyName: 'Euro', unit: 'km', unitLabel: 'Kilómetros', prefix: '+34' },
-  MX: { currency: 'MXN', currencySymbol: '$', currencyName: 'Peso Mexicano', unit: 'km', unitLabel: 'Kilómetros', prefix: '+52' },
-  PE: { currency: 'PEN', currencySymbol: 'S/.', currencyName: 'Sol Peruano', unit: 'km', unitLabel: 'Kilómetros', prefix: '+51' },
-  UK: { currency: 'GBP', currencySymbol: '£', currencyName: 'Libra Esterlina', unit: 'mi', unitLabel: 'Millas', prefix: '+44' },
-  US: { currency: 'USD', currencySymbol: '$', currencyName: 'Dólar Estadounidense', unit: 'mi', unitLabel: 'Millas', prefix: '+1' }
-};
+// Reference the custom Verdi native plugin
+// Safe wrapper in case of browser/non-native environment
+const VerdiPlugin = registerPlugin('Verdi', {
+  web: () => ({
+    checkPermissions: async () => ({ overlay: false, accessibility: false }),
+    requestPermissions: async (args) => ({ status: 'prompted' }),
+    updateConfig: async (config) => { console.log('Mock Config Sended to Android:', config); return { status: 'ok' }; },
+    toggleBubble: async (args) => ({ active: args.active })
+  })
+});
 
-// --- Active Session Info ---
-let currentSessionUser = null;
-let userProfile = null; // Store full DB row
-let currentProfileData = {
-  full_name: 'Conductor',
-  phone: '',
-  country: 'CL',
-  currencySymbol: '$',
+// App State Management
+const STATE = {
   currency: 'CLP',
   distanceUnit: 'km',
-  distanceUnitLabel: 'Kilómetros',
-  fuel_cost: 0,
-  fuel_efficiency: 0,
-  desired_net_profit: 0,
-  semaforo_active: true,
-  connected_apps: [],
-  active_app: ''
+  fuelUnit: 'L',
+  consumptionUnit: 'km_l',
+  fuelPrice: 1200,
+  vehicleEfficiency: 12.0,
+  minHourlyEarnings: 15000,
+  minPerDistance: 350,
+  stats: {
+    total: 0,
+    green: 0,
+    red: 0
+  },
+  history: []
 };
 
-// --- DOM Elements ---
-document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Lucide Icons
+// DOM Elements
+const elements = {};
+
+// Cache DOM references
+function cacheDom() {
+  elements.tabs = document.querySelectorAll('.tab-content');
+  elements.navItems = document.querySelectorAll('.nav-item');
+  elements.sliders = document.querySelectorAll('input[type="range"]');
+  elements.costsForm = document.getElementById('costs-form');
+  
+  // Settings Inputs
+  elements.currency = document.getElementById('currency');
+  elements.unitDistance = document.getElementById('unit-distance');
+  elements.unitFuel = document.getElementById('unit-fuel');
+  elements.unitConsumption = document.getElementById('unit-consumption');
+  elements.fuelPriceInput = document.getElementById('fuel-price');
+  elements.efficiencyInput = document.getElementById('vehicle-efficiency');
+  elements.minEarningsInput = document.getElementById('min-earnings');
+  elements.minPerDistInput = document.getElementById('min-per-dist');
+  
+  // Dashboard Status Controls
+  elements.serviceBadge = document.getElementById('service-badge');
+  elements.serviceStatusText = document.getElementById('service-status-text');
+  elements.btnToggleOverlay = document.getElementById('btn-toggle-overlay');
+  elements.btnToggleAccessibility = document.getElementById('btn-toggle-accessibility');
+  elements.statusOverlayDesc = document.getElementById('status-overlay-desc');
+  elements.statusAccessibilityDesc = document.getElementById('status-accessibility-desc');
+  
+  // Live Screen Preview
+  elements.liveTrafficLight = document.getElementById('live-traffic-light');
+  elements.liveBubble = document.getElementById('live-bubble');
+  elements.liveBubbleText = document.getElementById('live-bubble-text');
+  elements.liveStatusTitle = document.getElementById('live-status-title');
+  elements.liveStatusDesc = document.getElementById('live-status-desc');
+  elements.liveMetricsContainer = document.getElementById('live-metrics-container');
+  elements.liveMetricPrice = document.getElementById('live-metric-price');
+  elements.liveMetricDist = document.getElementById('live-metric-dist');
+  elements.liveMetricProfit = document.getElementById('live-metric-profit');
+  
+  // Stats Counters
+  elements.statsTotal = document.getElementById('stats-total');
+  elements.statsGreen = document.getElementById('stats-green');
+  elements.statsRed = document.getElementById('stats-red');
+  
+  // Simulator Inputs & Results
+  elements.simPrice = document.getElementById('sim-price');
+  elements.simDistance = document.getElementById('sim-distance');
+  elements.simTime = document.getElementById('sim-time');
+  elements.btnRunSim = document.getElementById('btn-run-simulation');
+  elements.simResultCard = document.getElementById('sim-result-card');
+  elements.simResultLight = document.getElementById('sim-result-light');
+  elements.simResultTitle = document.getElementById('sim-result-title');
+  elements.simResFuel = document.getElementById('sim-res-fuel');
+  elements.simResNet = document.getElementById('sim-res-net');
+  elements.simResHourly = document.getElementById('sim-res-hourly');
+  elements.simResDecision = document.getElementById('sim-res-decision');
+  
+  // Labels
+  elements.lblDistUnits = document.querySelectorAll('.lbl-dist-unit');
+  elements.historyContainer = document.getElementById('history-container');
+}
+
+// Format Numbers to currency
+function formatCurrency(value, currency) {
+  const code = currency || STATE.currency;
+  try {
+    return new Intl.NumberFormat(code === 'CLP' || code === 'COP' ? 'es-CL' : 'en-US', {
+      style: 'currency',
+      currency: code,
+      maximumFractionDigits: 0
+    }).format(value);
+  } catch (e) {
+    return `$${Math.round(value)}`;
+  }
+}
+
+// Load and Initialize Settings
+function loadSettings() {
+  const saved = localStorage.getItem('verdi_settings');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      Object.assign(STATE, parsed);
+    } catch(e) {
+      console.error('Error parsing local storage settings', e);
+    }
+  }
+  
+  // Sync state to UI
+  elements.currency.value = STATE.currency;
+  elements.unitDistance.value = STATE.distanceUnit;
+  elements.unitFuel.value = STATE.fuelUnit;
+  elements.unitConsumption.value = STATE.consumptionUnit;
+  
+  elements.fuelPriceInput.value = STATE.fuelPrice;
+  elements.efficiencyInput.value = STATE.vehicleEfficiency;
+  elements.minEarningsInput.value = STATE.minHourlyEarnings;
+  elements.minPerDistInput.value = STATE.minPerDistance;
+  
+  // Update badges
+  updateSliderBadges();
+  updateLabels();
+  syncConfigToNative();
+}
+
+function updateSliderBadges() {
+  document.getElementById('val-fuel-price').innerText = formatCurrency(elements.fuelPriceInput.value);
+  document.getElementById('val-efficiency').innerText = `${elements.efficiencyInput.value} ${STATE.distanceUnit}/${STATE.fuelUnit}`;
+  document.getElementById('val-min-earnings').innerText = `${formatCurrency(elements.minEarningsInput.value)}/hr`;
+  document.getElementById('val-min-per-dist').innerText = `${formatCurrency(elements.minPerDistInput.value)}/${STATE.distanceUnit}`;
+}
+
+function updateLabels() {
+  elements.lblDistUnits.forEach(el => el.innerText = STATE.distanceUnit);
+}
+
+// Save Settings Form
+function saveSettings(e) {
+  if (e) e.preventDefault();
+  
+  STATE.currency = elements.currency.value;
+  STATE.distanceUnit = elements.unitDistance.value;
+  STATE.fuelUnit = elements.unitFuel.value;
+  STATE.consumptionUnit = elements.unitConsumption.value;
+  
+  STATE.fuelPrice = parseFloat(elements.fuelPriceInput.value);
+  STATE.vehicleEfficiency = parseFloat(elements.efficiencyInput.value);
+  STATE.minHourlyEarnings = parseFloat(elements.minEarningsInput.value);
+  STATE.minPerDistance = parseFloat(elements.minPerDistInput.value);
+  
+  localStorage.setItem('verdi_settings', JSON.stringify(STATE));
+  updateLabels();
+  updateSliderBadges();
+  syncConfigToNative();
+  
+  // Trigger animations
+  const btn = document.getElementById('btn-save-settings');
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '⚡ Guardado y Sincronizado!';
+  btn.style.background = '#059669';
+  setTimeout(() => {
+    btn.innerHTML = oldText;
+    btn.style.background = '';
+  }, 1500);
+}
+
+// Sync parameters to native Kotlin Layer
+async function syncConfigToNative() {
+  try {
+    await VerdiPlugin.updateConfig({
+      currency: STATE.currency,
+      distanceUnit: STATE.distanceUnit,
+      fuelUnit: STATE.fuelUnit,
+      consumptionUnit: STATE.consumptionUnit,
+      fuelPrice: STATE.fuelPrice,
+      vehicleEfficiency: STATE.vehicleEfficiency,
+      minHourlyEarnings: STATE.minHourlyEarnings,
+      minPerDistance: STATE.minPerDistance
+    });
+  } catch (err) {
+    console.warn('Native environment not loaded yet for configuration sync.', err);
+  }
+}
+
+// Check native Android permissions
+async function checkAndroidPermissions() {
+  try {
+    const res = await VerdiPlugin.checkPermissions();
+    updatePermissionUI('overlay', res.overlay);
+    updatePermissionUI('accessibility', res.accessibility);
+    
+    // Toggle active classes on global status badge
+    if (res.accessibility && res.overlay) {
+      elements.serviceBadge.classList.add('active');
+      elements.serviceStatusText.innerText = 'Servicio Activo';
+    } else {
+      elements.serviceBadge.classList.remove('active');
+      elements.serviceStatusText.innerText = 'Servicio Inactivo';
+    }
+  } catch (err) {
+    console.warn('Cannot read native permissions, browser mode active.');
+  }
+}
+
+function updatePermissionUI(type, granted) {
+  if (type === 'overlay') {
+    const card = document.getElementById('card-overlay');
+    const desc = elements.statusOverlayDesc;
+    const btn = elements.btnToggleOverlay;
+    if (granted) {
+      card.classList.add('active');
+      desc.innerText = 'Permiso Activo';
+      btn.innerText = 'Desactivar';
+    } else {
+      card.classList.remove('active');
+      desc.innerText = 'Requiere permiso de dibujo';
+      btn.innerText = 'Otorgar';
+    }
+  } else if (type === 'accessibility') {
+    const card = document.getElementById('card-accessibility');
+    const desc = elements.statusAccessibilityDesc;
+    const btn = elements.btnToggleAccessibility;
+    if (granted) {
+      card.classList.add('active');
+      desc.innerText = 'Lectura Activa';
+      btn.innerText = 'Desactivar';
+    } else {
+      card.classList.remove('active');
+      desc.innerText = 'Requiere servicio accesibilidad';
+      btn.innerText = 'Otorgar';
+    }
+  }
+}
+
+// Request permission natively
+async function toggleAndroidPermission(type) {
+  try {
+    if (type === 'overlay') {
+      const active = !document.getElementById('card-overlay').classList.contains('active');
+      await VerdiPlugin.requestPermissions({ type: 'overlay', value: active });
+    } else if (type === 'accessibility') {
+      const active = !document.getElementById('card-accessibility').classList.contains('active');
+      await VerdiPlugin.requestPermissions({ type: 'accessibility', value: active });
+    }
+    // Recheck state after requesting
+    setTimeout(checkAndroidPermissions, 1000);
+  } catch (err) {
+    // Simulator mock mode toggle for testing UI
+    if (type === 'overlay') {
+      const active = !document.getElementById('card-overlay').classList.contains('active');
+      updatePermissionUI('overlay', active);
+    } else if (type === 'accessibility') {
+      const active = !document.getElementById('card-accessibility').classList.contains('active');
+      updatePermissionUI('accessibility', active);
+    }
+    
+    // Update master service status badge
+    const ovActive = document.getElementById('card-overlay').classList.contains('active');
+    const acActive = document.getElementById('card-accessibility').classList.contains('active');
+    if (ovActive && acActive) {
+      elements.serviceBadge.classList.add('active');
+      elements.serviceStatusText.innerText = 'Servicio Activo';
+    } else {
+      elements.serviceBadge.classList.remove('active');
+      elements.serviceStatusText.innerText = 'Servicio Inactivo';
+    }
+  }
+}
+
+// Profitability core math formula
+function calculateProfitability(price, distance, timeMins) {
+  // Fuel Cost calculation
+  // Distance divided by efficiency = fuel amount needed (applicable to both KM/L and MPG)
+  const fuelUsed = distance / STATE.vehicleEfficiency;
+  
+  const fuelCost = fuelUsed * STATE.fuelPrice;
+  const netProfit = price - fuelCost;
+  
+  // Hourly rate projection
+  const hours = timeMins / 60;
+  const hourlyRate = hours > 0 ? (netProfit / hours) : 0;
+  
+  // Distance rate projection
+  const distanceRate = distance > 0 ? (netProfit / distance) : 0;
+  
+  // Decide Traffic Light Color
+  let decision = 'RED';
+  if (netProfit > 0) {
+    const pctHourly = hourlyRate / STATE.minHourlyEarnings;
+    const pctDist = distanceRate / STATE.minPerDistance;
+    
+    // Both metrics must be fully satisfied for Green
+    if (pctHourly >= 1.0 && pctDist >= 1.0) {
+      decision = 'GREEN';
+    } else if (pctHourly >= 0.7 && pctDist >= 0.7) {
+      decision = 'YELLOW';
+    }
+  }
+  
+  return {
+    fuelCost,
+    netProfit,
+    hourlyRate,
+    decision
+  };
+}
+
+// Run simulation from form
+function runSimulation() {
+  const price = parseFloat(elements.simPrice.value);
+  const distance = parseFloat(elements.simDistance.value);
+  const time = parseFloat(elements.simTime.value);
+  
+  if (isNaN(price) || isNaN(distance) || isNaN(time)) return;
+  
+  const results = calculateProfitability(price, distance, time);
+  
+  // Display Results
+  elements.simResFuel.innerText = formatCurrency(results.fuelCost);
+  elements.simResNet.innerText = formatCurrency(results.netProfit);
+  elements.simResHourly.innerText = `${formatCurrency(results.hourlyRate)}/h`;
+  
+  // Decisión translation
+  let decisionText = '';
+  let borderClass = 'graphite';
+  if (results.decision === 'GREEN') {
+    decisionText = '🟢 Rentable';
+    borderClass = 'green';
+    STATE.stats.green++;
+  } else if (results.decision === 'YELLOW') {
+    decisionText = '🟡 Aceptable';
+    borderClass = 'yellow';
+  } else {
+    decisionText = '🔴 No recomendado';
+    borderClass = 'red';
+    STATE.stats.red++;
+  }
+  
+  STATE.stats.total++;
+  elements.simResDecision.innerText = decisionText;
+  
+  // Update classes
+  elements.simResultCard.className = `simulator-result-box ${borderClass}`;
+  
+  // Add to UI history list
+  addTripToHistory({
+    price,
+    distance,
+    time,
+    decision: results.decision,
+    netProfit: results.netProfit,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  });
+  
+  // Update dashboard stats counters
+  updateStatsCounters();
+}
+
+function updateStatsCounters() {
+  elements.statsTotal.innerText = STATE.stats.total;
+  elements.statsGreen.innerText = STATE.stats.green;
+  elements.statsRed.innerText = STATE.stats.red;
+}
+
+// Add analyzed item to logs
+function addTripToHistory(trip) {
+  STATE.history.unshift(trip);
+  if (STATE.history.length > 30) STATE.history.pop();
+  
+  renderHistory();
+}
+
+function renderHistory() {
+  if (STATE.history.length === 0) {
+    elements.historyContainer.innerHTML = '<li class="empty-history">No hay viajes capturados aún en este turno.</li>';
+    return;
+  }
+  
+  elements.historyContainer.innerHTML = STATE.history.map(trip => {
+    const dotColor = trip.decision.toLowerCase();
+    const netClass = trip.netProfit >= 0 ? 'green' : 'red';
+    const profitSign = trip.netProfit >= 0 ? '+' : '';
+    
+    return `
+      <li class="history-item">
+        <div class="hist-left">
+          <div class="hist-dot ${dotColor}"></div>
+          <div class="hist-details">
+            <span class="hist-price">${formatCurrency(trip.price)}</span>
+            <span class="hist-sub">${trip.distance} ${STATE.distanceUnit} • ${trip.time} min</span>
+          </div>
+        </div>
+        <div class="hist-right">
+          <span class="hist-profit ${netClass}">${profitSign}${formatCurrency(trip.netProfit)}</span>
+          <span class="hist-time">${trip.timestamp}</span>
+        </div>
+      </li>
+    `;
+  }).join('');
+}
+
+// Handle native callbacks from screen readers
+function setupNativeListeners() {
+  try {
+    // Listen for trips captured by background OCR/Accessibility service
+    VerdiPlugin.addListener('onTripCaptured', (trip) => {
+      // trip keys: price, distance, timeMins
+      const results = calculateProfitability(trip.price, trip.distance, trip.timeMins);
+      
+      // Update dashboard real-time view
+      elements.liveMetricsContainer.style.display = 'flex';
+      elements.liveMetricPrice.innerText = formatCurrency(trip.price);
+      elements.liveMetricDist.innerText = `${trip.distance} ${STATE.distanceUnit}`;
+      elements.liveMetricProfit.innerText = `${formatCurrency(results.netProfit)} netos`;
+      
+      let borderClass = 'graphite';
+      let title = 'Oferta Grafito';
+      let desc = 'Servicio activo. Buscando viajes en primer plano...';
+      let emoji = '🔘';
+      
+      if (results.decision === 'GREEN') {
+        borderClass = 'green';
+        title = '🟢 Oferta Rentable!';
+        desc = `Viaje altamente rentable detectado. Ganancia horaria estimada: ${formatCurrency(results.hourlyRate)}/hr.`;
+        emoji = '🟢';
+        STATE.stats.green++;
+      } else if (results.decision === 'YELLOW') {
+        borderClass = 'yellow';
+        title = '🟡 Oferta Marginal';
+        desc = `Viaje aceptable. Margen ajustado. Ganancia horaria estimada: ${formatCurrency(results.hourlyRate)}/hr.`;
+        emoji = '🟡';
+      } else if (results.decision === 'RED') {
+        borderClass = 'red';
+        title = '🔴 Oferta NO Recomendable';
+        desc = `Viaje poco rentable o a pérdida. Combustible estimado: ${formatCurrency(results.fuelCost)}. Tasa: ${formatCurrency(results.hourlyRate)}/hr.`;
+        emoji = '🔴';
+        STATE.stats.red++;
+      }
+      
+      STATE.stats.total++;
+      elements.liveStatusTitle.innerText = title;
+      elements.liveStatusDesc.innerText = desc;
+      elements.liveBubbleText.innerText = emoji;
+      elements.liveTrafficLight.className = `traffic-light-preview ${borderClass}`;
+      
+      // Save to history
+      addTripToHistory({
+        price: trip.price,
+        distance: trip.distance,
+        time: trip.timeMins,
+        decision: results.decision,
+        netProfit: results.netProfit,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+      });
+      
+      // Refresh stats
+      updateStatsCounters();
+    });
+  } catch(err) {
+    console.warn('Cannot register native callbacks, browser simulation running.');
+  }
+}
+
+// Navigation Tab Switcher
+function setupNavigation() {
+  elements.navItems.forEach(item => {
+    item.addEventListener('click', () => {
+      const targetTab = item.dataset.tab;
+      
+      // Remove active from nav elements
+      elements.navItems.forEach(n => n.classList.remove('active'));
+      item.classList.add('active');
+      
+      // Switch active class on sections
+      elements.tabs.forEach(tab => {
+        if (tab.id === targetTab) {
+          tab.classList.add('active');
+        } else {
+          tab.classList.remove('active');
+        }
+      });
+    });
+  });
+}
+
+// Event Listeners Initialization
+function initEvents() {
+  // Navigation tabs
+  setupNavigation();
+  
+  // Sliders value updates
+  elements.sliders.forEach(slider => {
+    slider.addEventListener('input', updateSliderBadges);
+  });
+  
+  // Forms submit
+  elements.costsForm.addEventListener('submit', saveSettings);
+  elements.btnRunSim.addEventListener('click', runSimulation);
+  
+  // Permission Toggles
+  elements.btnToggleOverlay.addEventListener('click', () => toggleAndroidPermission('overlay'));
+  elements.btnToggleAccessibility.addEventListener('click', () => toggleAndroidPermission('accessibility'));
+  
+  // Unit change updates
+  elements.unitDistance.addEventListener('change', (e) => {
+    STATE.distanceUnit = e.target.value;
+    updateLabels();
+    updateSliderBadges();
+  });
+  elements.unitFuel.addEventListener('change', (e) => {
+    STATE.fuelUnit = e.target.value;
+    updateSliderBadges();
+  });
+  elements.currency.addEventListener('change', (e) => {
+    STATE.currency = e.target.value;
+    updateSliderBadges();
+  });
+}
+
+// Bootstrap Application
+window.addEventListener('DOMContentLoaded', () => {
+  cacheDom();
+  initEvents();
+  loadSettings();
+  setupNativeListeners();
+  checkAndroidPermissions();
+  
+  // Initialize Lucide icons
   if (window.lucide) {
     window.lucide.createIcons();
   }
-
-  const appHeader = document.querySelector('.app-header');
-  const loginView = document.getElementById('loginView');
-  const registerView = document.getElementById('registerView');
-  const profitabilityView = document.getElementById('profitabilityView');
-  const dashboardView = document.getElementById('dashboardView');
-  const settingsView = document.getElementById('settingsView');
-  const appsView = document.getElementById('appsView');
-  const profitActiveApp = document.getElementById('profitActiveApp');
-  const dashActiveAppContainer = document.getElementById('dashActiveAppContainer');
-  const dashActiveAppName = document.getElementById('dashActiveAppName');
-
-  // Switch views buttons
-  const switchToRegisterBtn = document.getElementById('switchToRegisterBtn');
-  const switchToLoginBtn = document.getElementById('switchToLoginBtn');
-  
-  // Forms
-  const loginForm = document.getElementById('loginForm');
-  const registerForm = document.getElementById('registerForm');
-  const profitabilityForm = document.getElementById('profitabilityForm');
-  const settingsForm = document.getElementById('settingsForm');
-  
-  // Register inputs
-  const countrySelect = document.getElementById('registerCountry');
-  const autoConfigPanel = document.getElementById('autoConfigPanel');
-  const currencySymbol = document.getElementById('currencySymbol');
-  const currencyName = document.getElementById('currencyName');
-  const distanceUnit = document.getElementById('distanceUnit');
-  const distanceUnitLabel = document.getElementById('distanceUnitLabel');
-  const phonePrefix = document.getElementById('phonePrefix');
-  const registerPhone = document.getElementById('registerPhone');
-
-  // Suffix elements for Profitability View
-  const fuelCostSuffix = document.getElementById('fuelCostSuffix');
-  const efficiencySuffix = document.getElementById('efficiencySuffix');
-  const netGoalSuffix = document.getElementById('netGoalSuffix');
-
-  // Dashboard Stats Elements
-  const dashNetGoal = document.getElementById('dashNetGoal');
-  const dashNetGoalUnit = document.getElementById('dashNetGoalUnit');
-  const dashFuelCost = document.getElementById('dashFuelCost');
-  const dashFuelCostUnit = document.getElementById('dashFuelCostUnit');
-  const dashEfficiency = document.getElementById('dashEfficiency');
-  const dashEfficiencyUnit = document.getElementById('dashEfficiencyUnit');
-  const avatarName = document.getElementById('avatarName');
-
-  // Side Menu Drawer Elements
-  const sideMenu = document.getElementById('sideMenu');
-  const menuBackdrop = document.getElementById('menuBackdrop');
-  const openMenuBtn = document.getElementById('openMenuBtn');
-  const closeMenuBtn = document.getElementById('closeMenuBtn');
-  const menuAvatar = document.getElementById('menuAvatar');
-  const menuUserName = document.getElementById('menuUserName');
-  const menuUserEmail = document.getElementById('menuUserEmail');
-
-  const menuHomeBtn = document.getElementById('menuHomeBtn');
-  const menuSettingsBtn = document.getElementById('menuSettingsBtn');
-  const menuAppsBtn = document.getElementById('menuAppsBtn');
-  const menuLogoutBtn = document.getElementById('menuLogoutBtn');
-
-  // Settings inputs
-  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
-  const closeAppsBtn = document.getElementById('closeAppsBtn');
-  const settingsCountry = document.getElementById('settingsCountry');
-  const settingsCurrencySymbol = document.getElementById('settingsCurrencySymbol');
-  const settingsCurrencyName = document.getElementById('settingsCurrencyName');
-  const settingsDistanceUnit = document.getElementById('settingsDistanceUnit');
-  const settingsDistanceUnitLabel = document.getElementById('settingsDistanceUnitLabel');
-  const settingsPhonePrefix = document.getElementById('settingsPhonePrefix');
-  const settingsPhone = document.getElementById('settingsPhone');
-  const settingsPassword = document.getElementById('settingsPassword');
-
-  // Toggle view function
-  const switchView = (targetView) => {
-    // Show/hide main landing header (only for Login and Register views)
-    if (targetView === loginView || targetView === registerView) {
-      appHeader.style.display = 'block';
-    } else {
-      appHeader.style.display = 'none';
-    }
-
-    // Hide all views
-    [loginView, registerView, profitabilityView, dashboardView, settingsView, appsView].forEach(view => {
-      view.classList.remove('active');
-      view.style.display = 'none';
-    });
-    
-    // Show target view
-    targetView.style.display = 'block';
-    setTimeout(() => targetView.classList.add('active'), 50);
-  };
-
-  // Side Menu Open/Close logic
-  const toggleMenu = (open) => {
-    if (open) {
-      sideMenu.classList.add('open');
-      menuBackdrop.classList.add('open');
-    } else {
-      sideMenu.classList.remove('open');
-      menuBackdrop.classList.remove('open');
-    }
-  };
-
-  openMenuBtn.addEventListener('click', () => toggleMenu(true));
-  
-  // Add listener for the second menu button in Profitability View
-  const openMenuBtnProfit = document.getElementById('openMenuBtnProfit');
-  if (openMenuBtnProfit) {
-    openMenuBtnProfit.addEventListener('click', () => toggleMenu(true));
-  }
-
-  closeMenuBtn.addEventListener('click', () => toggleMenu(false));
-  menuBackdrop.addEventListener('click', () => toggleMenu(false));
-
-  // Switch menu items
-  menuHomeBtn.addEventListener('click', () => {
-    menuHomeBtn.classList.add('active');
-    menuSettingsBtn.classList.remove('active');
-    menuAppsBtn.classList.remove('active');
-    toggleMenu(false);
-    if (currentProfileData.settings_configured) {
-      switchView(dashboardView);
-    } else {
-      switchView(profitabilityView);
-    }
-  });
-
-  menuSettingsBtn.addEventListener('click', () => {
-    menuSettingsBtn.classList.add('active');
-    menuHomeBtn.classList.remove('active');
-    menuAppsBtn.classList.remove('active');
-    toggleMenu(false);
-    loadProfileIntoSettings();
-    switchView(settingsView);
-  });
-
-  menuAppsBtn.addEventListener('click', () => {
-    menuAppsBtn.classList.add('active');
-    menuHomeBtn.classList.remove('active');
-    menuSettingsBtn.classList.remove('active');
-    toggleMenu(false);
-    switchView(appsView);
-  });
-
-  closeSettingsBtn.addEventListener('click', () => {
-    menuHomeBtn.classList.add('active');
-    menuSettingsBtn.classList.remove('active');
-    menuAppsBtn.classList.remove('active');
-    if (currentProfileData.settings_configured) {
-      switchView(dashboardView);
-    } else {
-      switchView(profitabilityView);
-    }
-  });
-
-  closeAppsBtn.addEventListener('click', () => {
-    menuHomeBtn.classList.add('active');
-    menuSettingsBtn.classList.remove('active');
-    menuAppsBtn.classList.remove('active');
-    if (currentProfileData.settings_configured) {
-      switchView(dashboardView);
-    } else {
-      switchView(profitabilityView);
-    }
-  });
-
-  menuLogoutBtn.addEventListener('click', async () => {
-    toggleMenu(false);
-    const confirmLogout = confirm('¿Estás seguro de que deseas cerrar sesión?');
-    if (confirmLogout) {
-      if (isConfigured) {
-        await supabase.auth.signOut();
-      }
-      currentSessionUser = null;
-      userProfile = null;
-      switchView(loginView);
-    }
-  });
-
-  // Toggle Semáforo (Turn Off / Turn On) Event Listener
-  const toggleSemaforoBtn = document.getElementById('toggleSemaforoBtn');
-  toggleSemaforoBtn.addEventListener('click', async () => {
-    const newState = !currentProfileData.semaforo_active;
-    currentProfileData.semaforo_active = newState;
-    
-    const originalHtml = toggleSemaforoBtn.innerHTML;
-    toggleSemaforoBtn.disabled = true;
-    toggleSemaforoBtn.innerHTML = `<span>Procesando...</span>`;
-
-    if (isConfigured && currentSessionUser) {
-      try {
-        const updatePayload = { semaforo_active: newState };
-        if (!newState) {
-          updatePayload.settings_configured = false;
-        }
-        const { error } = await supabase
-          .from('profiles')
-          .update(updatePayload)
-          .eq('id', currentSessionUser.id);
-        if (error) throw error;
-      } catch (err) {
-        console.error(err);
-        alert('Error al guardar el estado del semáforo: ' + err.message);
-      }
-    }
-
-    setTimeout(() => {
-      toggleSemaforoBtn.disabled = false;
-      toggleSemaforoBtn.innerHTML = originalHtml;
-      
-      if (!newState) {
-        // Al apagar, marcamos como no configurado y redirigimos al formulario inicial
-        if (userProfile) userProfile.settings_configured = false;
-        
-        // Pre-rellenamos el formulario con los datos que ya tenía guardados
-        document.getElementById('profitFuelCost').value = currentProfileData.fuel_cost || '';
-        document.getElementById('profitEfficiency').value = currentProfileData.fuel_efficiency || '';
-        document.getElementById('profitNetGoal').value = currentProfileData.desired_net_profit || '';
-        
-        menuHomeBtn.classList.add('active');
-        menuSettingsBtn.classList.remove('active');
-        setupProfitabilityLabels();
-        switchView(profitabilityView);
-      } else {
-        updateDashboardStats();
-      }
-    }, 400);
-  });
-
-  // Event Listeners for switching views on landing page
-  switchToRegisterBtn.addEventListener('click', () => switchView(registerView));
-  switchToLoginBtn.addEventListener('click', () => switchView(loginView));
-
-  // Toggle Password Visibility (Safe Selection for Lucide SVG conversion)
-  const togglePasswordBtns = document.querySelectorAll('.toggle-password-btn');
-  togglePasswordBtns.forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const input = btn.previousElementSibling;
-      const icon = btn.querySelector('i, svg');
-      if (input.type === 'password') {
-        input.type = 'text';
-        if (icon) icon.setAttribute('data-lucide', 'eye-off');
-      } else {
-        input.type = 'password';
-        if (icon) icon.setAttribute('data-lucide', 'eye');
-      }
-      if (window.lucide) {
-        window.lucide.createIcons();
-      }
-    });
-  });
-
-  // Country Selection Event (Register Form)
-  countrySelect.addEventListener('change', (e) => {
-    const code = e.target.value;
-    const config = countryConfig[code];
-    if (config) {
-      currencySymbol.textContent = config.currencySymbol;
-      currencyName.textContent = `${config.currency} - ${config.currencyName}`;
-      distanceUnit.textContent = config.unit;
-      distanceUnitLabel.textContent = config.unitLabel;
-      phonePrefix.textContent = config.prefix;
-      autoConfigPanel.classList.remove('hidden');
-      clearError('registerCountry');
-    } else {
-      autoConfigPanel.classList.add('hidden');
-      phonePrefix.textContent = '+--';
-    }
-  });
-
-  // Country Selection Event (Settings Form)
-  settingsCountry.addEventListener('change', (e) => {
-    const code = e.target.value;
-    const config = countryConfig[code];
-    if (config) {
-      settingsCurrencySymbol.textContent = config.currencySymbol;
-      settingsCurrencyName.textContent = `${config.currency} - ${config.currencyName}`;
-      settingsDistanceUnit.textContent = config.unit;
-      settingsDistanceUnitLabel.textContent = config.unitLabel;
-      settingsPhonePrefix.textContent = config.prefix;
-    }
-  });
-
-  // --- Connected Apps Handling ---
-  const renderConnectedAppsUI = () => {
-    const connectBtns = document.querySelectorAll('.app-connect-btn');
-    connectBtns.forEach(btn => {
-      const appName = btn.getAttribute('data-app');
-      const isConnected = currentProfileData.connected_apps.includes(appName);
-      if (isConnected) {
-        btn.classList.add('connected');
-        btn.textContent = 'Desconectar';
-      } else {
-        btn.classList.remove('connected');
-        btn.textContent = 'Conectar';
-      }
-    });
-  };
-
-  const populateActiveAppSelect = () => {
-    if (!profitActiveApp) return;
-    
-    // Save current selection to restore it if possible
-    const currentSelected = profitActiveApp.value;
-    
-    // Clear options except first
-    profitActiveApp.innerHTML = '<option value="" disabled selected>Selecciona una aplicación</option>';
-    
-    // If no apps are connected, list all of them but show a generic option
-    const appsToRender = currentProfileData.connected_apps.length > 0 
-      ? currentProfileData.connected_apps 
-      : ['Uber Driver', 'DiDi Conductor', 'Cabify Conductores', 'inDrive', 'Yango Pro'];
-      
-    appsToRender.forEach(app => {
-      const opt = document.createElement('option');
-      opt.value = app;
-      opt.textContent = app;
-      profitActiveApp.appendChild(opt);
-    });
-
-    // Add independent work option
-    const indepOpt = document.createElement('option');
-    indepOpt.value = 'Trabajo Independiente';
-    indepOpt.textContent = 'Trabajo Independiente / Otra';
-    profitActiveApp.appendChild(indepOpt);
-    
-    // Restore selection or select default
-    if (currentSelected && [...profitActiveApp.options].some(o => o.value === currentSelected)) {
-      profitActiveApp.value = currentSelected;
-    } else if (currentProfileData.active_app && [...profitActiveApp.options].some(o => o.value === currentProfileData.active_app)) {
-      profitActiveApp.value = currentProfileData.active_app;
-    } else {
-      profitActiveApp.value = '';
-    }
-  };
-
-  // Delegate click for connect buttons
-  document.addEventListener('click', async (e) => {
-    if (e.target && e.target.classList.contains('app-connect-btn')) {
-      const btn = e.target;
-      const appName = btn.getAttribute('data-app');
-      let connected = [...currentProfileData.connected_apps];
-      
-      if (connected.includes(appName)) {
-        connected = connected.filter(a => a !== appName);
-      } else {
-        connected.push(appName);
-      }
-      
-      currentProfileData.connected_apps = connected;
-      renderConnectedAppsUI();
-      populateActiveAppSelect();
-      
-      // Update profile database if logged in
-      if (isConfigured && currentSessionUser) {
-        try {
-          const { error } = await supabase
-            .from('profiles')
-            .update({ connected_apps: connected })
-            .eq('id', currentSessionUser.id);
-          
-          if (error) {
-            if (error.message && error.message.includes('connected_apps')) {
-              console.warn('connected_apps column does not exist on profiles table. Working in offline/demo mode for apps list.');
-            } else {
-              throw error;
-            }
-          }
-        } catch (err) {
-          console.error('Error saving connected apps:', err);
-        }
-      }
-    }
-  });
-
-  // Form Validation Utilities
-  const setError = (id, message) => {
-    const element = document.getElementById(id);
-    if (!element) return;
-    const group = element.closest('.input-group');
-    const errorSpan = document.getElementById(`${id}Error`);
-    if (group && errorSpan) {
-      group.classList.add('invalid');
-      errorSpan.textContent = message;
-    }
-  };
-
-  const clearError = (id) => {
-    const element = document.getElementById(id);
-    if (!element) return;
-    const group = element.closest('.input-group');
-    const errorSpan = document.getElementById(`${id}Error`);
-    if (group && errorSpan) {
-      group.classList.remove('invalid');
-      errorSpan.textContent = '';
-    }
-  };
-
-  const validateEmail = (email) => {
-    const re = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return re.test(String(email).toLowerCase());
-  };
-
-  // Setup dynamic labels based on active user settings
-  const updateProfileDataLocally = (profile) => {
-    userProfile = profile;
-    
-    currentProfileData.full_name = profile.full_name || 'Conductor';
-    currentProfileData.phone = profile.phone || '';
-    currentProfileData.country = profile.country || 'CL';
-    currentProfileData.currency = profile.currency || 'CLP';
-    
-    const matchedConfig = countryConfig[currentProfileData.country];
-    currentProfileData.currencySymbol = matchedConfig ? matchedConfig.currencySymbol : '$';
-    currentProfileData.distanceUnit = profile.distance_unit || 'km';
-    currentProfileData.distanceUnitLabel = profile.distance_unit === 'mi' ? 'Millas' : 'Kilómetros';
-
-    currentProfileData.fuel_cost = profile.fuel_cost || 0;
-    currentProfileData.fuel_efficiency = profile.fuel_efficiency || 0;
-    currentProfileData.desired_net_profit = profile.desired_net_profit || 0;
-    currentProfileData.semaforo_active = profile.semaforo_active !== false; // defaults to true
-    currentProfileData.settings_configured = profile.settings_configured === true;
-    currentProfileData.connected_apps = profile.connected_apps || [];
-    currentProfileData.active_app = profile.active_app || '';
-
-    // Render UI states
-    renderConnectedAppsUI();
-    populateActiveAppSelect();
-  };
-
-  const setupProfitabilityLabels = () => {
-    fuelCostSuffix.textContent = `${currentProfileData.currencySymbol}/L`;
-    efficiencySuffix.textContent = `${currentProfileData.distanceUnit}/L`;
-    netGoalSuffix.textContent = `${currentProfileData.currencySymbol}/${currentProfileData.distanceUnit}`;
-
-    document.getElementById('profitFuelCost').placeholder = `ej. 1.20 (${currentProfileData.currencySymbol})`;
-    document.getElementById('profitEfficiency').placeholder = `ej. 12.5 (${currentProfileData.distanceUnit}/L)`;
-    document.getElementById('profitNetGoal').placeholder = `ej. 0.80 (${currentProfileData.currencySymbol}/${currentProfileData.distanceUnit})`;
-  };
-
-  // Load profile values into the settings form
-  const loadProfileIntoSettings = () => {
-    settingsCountry.value = currentProfileData.country;
-    
-    // Trigger the country change display updates
-    const config = countryConfig[currentProfileData.country];
-    if (config) {
-      settingsCurrencySymbol.textContent = config.currencySymbol;
-      settingsCurrencyName.textContent = `${config.currency} - ${config.currencyName}`;
-      settingsDistanceUnit.textContent = config.unit;
-      settingsDistanceUnitLabel.textContent = config.unitLabel;
-      settingsPhonePrefix.textContent = config.prefix;
-    }
-
-    // Strip prefix from phone number if present to fill the input correctly
-    let rawPhone = currentProfileData.phone;
-    if (config && rawPhone.startsWith(config.prefix)) {
-      rawPhone = rawPhone.replace(config.prefix, '').trim();
-    }
-    settingsPhone.value = rawPhone;
-    document.getElementById('settingsOldPassword').value = '';
-    document.getElementById('settingsPassword').value = '';
-    document.getElementById('settingsConfirmPassword').value = '';
-
-    // Set side menu profile metadata
-    menuUserName.textContent = currentProfileData.full_name;
-    menuUserEmail.textContent = currentSessionUser ? currentSessionUser.email : 'correo@ejemplo.com';
-    
-    const initials = currentProfileData.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-    avatarName.textContent = initials || 'U';
-    menuAvatar.textContent = initials || 'U';
-    
-    const avatarNameProfit = document.getElementById('avatarNameProfit');
-    if (avatarNameProfit) {
-      avatarNameProfit.textContent = initials || 'U';
-    }
-  };
-
-  // Update Dashboard View statistics
-  const updateDashboardStats = () => {
-    dashNetGoal.textContent = `${currentProfileData.currencySymbol} ${parseFloat(currentProfileData.desired_net_profit).toFixed(2)}`;
-    dashNetGoalUnit.textContent = `/ ${currentProfileData.distanceUnit}`;
-
-    dashFuelCost.textContent = `${currentProfileData.currencySymbol} ${parseFloat(currentProfileData.fuel_cost).toFixed(2)}`;
-    dashFuelCostUnit.textContent = `/ Litro`;
-
-    dashEfficiency.textContent = `${parseFloat(currentProfileData.fuel_efficiency).toFixed(1)}`;
-    dashEfficiencyUnit.textContent = `${currentProfileData.distanceUnit} / L`;
-
-    // Update semaforo UI elements based on state
-    const statusCard = document.getElementById('statusCard');
-    const statusDot = document.getElementById('statusDot');
-    const statusDesc = document.getElementById('statusDesc');
-
-    if (currentProfileData.semaforo_active) {
-      statusCard.classList.remove('inactive');
-      statusDot.classList.remove('inactive');
-      statusDot.classList.add('green');
-      statusDesc.textContent = 'Operación Altamente Rentable';
-      toggleSemaforoBtn.classList.remove('inactive');
-      toggleSemaforoBtn.classList.add('active');
-      toggleSemaforoBtn.querySelector('span').textContent = 'Apagar Semáforo';
-    } else {
-      statusCard.classList.add('inactive');
-      statusDot.classList.add('inactive');
-      statusDot.classList.remove('green');
-      statusDesc.textContent = 'Semáforo Apagado / Inactivo';
-      toggleSemaforoBtn.classList.add('inactive');
-      toggleSemaforoBtn.classList.remove('active');
-      toggleSemaforoBtn.querySelector('span').textContent = 'Encender Semáforo';
-    }
-
-    // Render active app status if semaforo is active and active_app is set
-    if (currentProfileData.semaforo_active && currentProfileData.active_app) {
-      dashActiveAppContainer.style.display = 'flex';
-      dashActiveAppName.textContent = currentProfileData.active_app;
-    } else {
-      dashActiveAppContainer.style.display = 'none';
-    }
-
-    if (window.lucide) {
-      window.lucide.createIcons();
-    }
-
-    loadProfileIntoSettings();
-  };
-
-  // --- Login Form Submit ---
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    let isValid = true;
-
-    const email = document.getElementById('loginEmail');
-    const password = document.getElementById('loginPassword');
-
-    // Validation
-    if (!email.value.trim()) {
-      setError('loginEmail', 'El correo electrónico es requerido.');
-      isValid = false;
-    } else if (!validateEmail(email.value.trim())) {
-      setError('loginEmail', 'Ingresa un correo electrónico válido.');
-      isValid = false;
-    } else {
-      clearError('loginEmail');
-    }
-
-    if (!password.value) {
-      setError('loginPassword', 'La contraseña es requerida.');
-      isValid = false;
-    } else if (password.value.length < 8) {
-      setError('loginPassword', 'La contraseña debe tener al menos 8 caracteres.');
-      isValid = false;
-    } else {
-      clearError('loginPassword');
-    }
-
-    if (isValid) {
-      const submitBtn = document.getElementById('loginSubmitBtn');
-      const originalHtml = submitBtn.innerHTML;
-      submitBtn.disabled = true;
-
-      // Fallback Mode if Supabase is not configured
-      if (!isConfigured) {
-        submitBtn.innerHTML = `<span>Iniciando (Simulado)...</span> <div class="spinner"></div>`;
-        setTimeout(() => {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = originalHtml;
-
-          currentSessionUser = { id: 'demo-user-123', email: email.value.trim() };
-          updateProfileDataLocally({
-            full_name: 'Jorge Freire (Demo)',
-            country: 'CL',
-            phone: '+56 975333778',
-            currency: 'CLP',
-            distance_unit: 'km',
-            fuel_cost: 0,
-            fuel_efficiency: 0,
-            desired_net_profit: 0,
-            semaforo_active: true,
-            settings_configured: false
-          });
-
-          setupProfitabilityLabels();
-          switchView(profitabilityView);
-        }, 1200);
-        return;
-      }
-
-      submitBtn.innerHTML = `<span>Iniciando sesión...</span> <div class="spinner"></div>`;
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: email.value.trim(),
-          password: password.value,
-        });
-
-        if (error) throw error;
-        if (!data.user) throw new Error('Usuario inválido.');
-
-        currentSessionUser = data.user;
-
-        // Fetch additional profile data
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-
-        if (profileError) {
-          updateProfileDataLocally({
-            id: data.user.id,
-            full_name: 'Usuario Verdi',
-            country: 'CL',
-            currency: 'CLP',
-            distance_unit: 'km'
-          });
-        } else {
-          updateProfileDataLocally(profile);
-        }
-
-        setupProfitabilityLabels();
-
-        // Redirect to profitability configuration if not done yet, otherwise dashboard
-        if (userProfile && userProfile.settings_configured) {
-          updateDashboardStats();
-          switchView(dashboardView);
-        } else {
-          switchView(profitabilityView);
-        }
-
-      } catch (err) {
-        console.error(err);
-        setError('loginPassword', err.message || 'Error al iniciar sesión.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHtml;
-      }
-    }
-  });
-
-  // --- Register Form Submit ---
-  registerForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    let isValid = true;
-
-    const name = document.getElementById('registerName');
-    const email = document.getElementById('registerEmail');
-    const country = document.getElementById('registerCountry');
-    const phone = document.getElementById('registerPhone');
-    const password = document.getElementById('registerPassword');
-    const confirmPassword = document.getElementById('registerConfirmPassword');
-
-    // Validation
-    if (!name.value.trim()) {
-      setError('registerName', 'El nombre completo es requerido.');
-      isValid = false;
-    } else {
-      clearError('registerName');
-    }
-
-    if (!email.value.trim()) {
-      setError('registerEmail', 'El correo electrónico es requerido.');
-      isValid = false;
-    } else if (!validateEmail(email.value.trim())) {
-      setError('registerEmail', 'Ingresa un correo electrónico válido.');
-      isValid = false;
-    } else {
-      clearError('registerEmail');
-    }
-
-    if (!country.value) {
-      setError('registerCountry', 'Por favor selecciona tu país de procedencia.');
-      isValid = false;
-    } else {
-      clearError('registerCountry');
-    }
-
-    if (!phone.value.trim()) {
-      setError('registerPhone', 'El número de celular es requerido.');
-      isValid = false;
-    } else if (!/^\d{7,14}$/.test(phone.value.replace(/[\s-]/g, ''))) {
-      setError('registerPhone', 'Ingresa un número celular válido (solo números, entre 7 y 14 dígitos).');
-      isValid = false;
-    } else {
-      clearError('registerPhone');
-    }
-
-    if (!password.value) {
-      setError('registerPassword', 'La contraseña es requerida.');
-      isValid = false;
-    } else if (password.value.length < 8) {
-      setError('registerPassword', 'La contraseña debe tener al menos 8 caracteres.');
-      isValid = false;
-    } else {
-      clearError('registerPassword');
-    }
-
-    if (!confirmPassword.value) {
-      setError('registerConfirmPassword', 'Debes confirmar la contraseña.');
-      isValid = false;
-    } else if (confirmPassword.value !== password.value) {
-      setError('registerConfirmPassword', 'Las contraseñas no coinciden.');
-      isValid = false;
-    } else {
-      clearError('registerConfirmPassword');
-    }
-
-    if (isValid) {
-      const selectedConfig = countryConfig[country.value];
-      const fullPhone = `${selectedConfig.prefix} ${phone.value.trim()}`;
-      
-      const submitBtn = document.getElementById('registerSubmitBtn');
-      const originalHtml = submitBtn.innerHTML;
-      submitBtn.disabled = true;
-
-      // Fallback Mode if Supabase is not configured
-      if (!isConfigured) {
-        submitBtn.innerHTML = `<span>Registrando (Simulado)...</span> <div class="spinner"></div>`;
-        setTimeout(() => {
-          alert(`¡Modo Demo Activo (Supabase no configurado)!\nRegistro simulado con éxito.\nAhora inicia sesión con tus credenciales.`);
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = originalHtml;
-          
-          registerForm.reset();
-          autoConfigPanel.classList.add('hidden');
-          phonePrefix.textContent = '+--';
-          switchView(loginView);
-        }, 1200);
-        return;
-      }
-
-      submitBtn.innerHTML = `<span>Creando cuenta...</span> <div class="spinner"></div>`;
-      try {
-        const { data, error: signUpError } = await supabase.auth.signUp({
-          email: email.value.trim(),
-          password: password.value,
-        });
-
-        if (signUpError) throw signUpError;
-        if (!data.user) throw new Error('No se pudo crear el usuario.');
-
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              id: data.user.id,
-              full_name: name.value.trim(),
-              country: country.value,
-              currency: selectedConfig.currency,
-              distance_unit: selectedConfig.unit,
-              phone: fullPhone,
-            }
-          ]);
-
-        if (profileError) throw profileError;
-
-        alert(`¡Registro Exitoso!\nPor favor, verifica tu correo electrónico si tienes activada la confirmación de email.`);
-        
-        registerForm.reset();
-        autoConfigPanel.classList.add('hidden');
-        phonePrefix.textContent = '+--';
-        switchView(loginView);
-
-      } catch (err) {
-        console.error(err);
-        setError('registerPassword', err.message || 'Error al registrar el usuario.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHtml;
-      }
-    }
-  });
-
-  // --- Profitability Settings Form Submit ---
-  profitabilityForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    let isValid = true;
-
-    const fuelCost = document.getElementById('profitFuelCost');
-    const efficiency = document.getElementById('profitEfficiency');
-    const netGoal = document.getElementById('profitNetGoal');
-    const activeApp = document.getElementById('profitActiveApp');
-
-    // Validation
-    if (!fuelCost.value || parseFloat(fuelCost.value) <= 0) {
-      setError('profitFuelCost', 'Por favor ingresa un costo de combustible válido mayor a 0.');
-      isValid = false;
-    } else {
-      clearError('profitFuelCost');
-    }
-
-    if (!efficiency.value || parseFloat(efficiency.value) <= 0) {
-      setError('profitEfficiency', 'Por favor ingresa un rendimiento de auto válido mayor a 0.');
-      isValid = false;
-    } else {
-      clearError('profitEfficiency');
-    }
-
-    if (!netGoal.value || parseFloat(netGoal.value) <= 0) {
-      setError('profitNetGoal', 'La ganancia neta deseada es obligatoria y debe ser mayor a 0.');
-      isValid = false;
-    } else {
-      clearError('profitNetGoal');
-    }
-
-    if (!activeApp.value) {
-      setError('profitActiveApp', 'Por favor selecciona la aplicación en la que trabajarás hoy.');
-      isValid = false;
-    } else {
-      clearError('profitActiveApp');
-    }
-
-    if (isValid && currentSessionUser) {
-      const submitBtn = document.getElementById('profitSubmitBtn');
-      const originalHtml = submitBtn.innerHTML;
-      submitBtn.disabled = true;
-
-      // Fallback Mode if Supabase is not configured
-      if (!isConfigured) {
-        submitBtn.innerHTML = `<span>Guardando y activando...</span> <div class="spinner"></div>`;
-        setTimeout(() => {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = originalHtml;
-
-          // Update local variables
-          currentProfileData.fuel_cost = parseFloat(fuelCost.value);
-          currentProfileData.fuel_efficiency = parseFloat(efficiency.value);
-          currentProfileData.desired_net_profit = parseFloat(netGoal.value);
-          currentProfileData.active_app = activeApp.value;
-          currentProfileData.semaforo_active = true;
-          currentProfileData.settings_configured = true;
-          if (userProfile) userProfile.settings_configured = true;
-
-          alert(
-            `¡Parámetros de Rentabilidad Configurados (Modo Demo)!\n\n` +
-            `- Aplicación Activa: ${currentProfileData.active_app}\n` +
-            `- Costo Combustible: ${currentProfileData.currencySymbol}${fuelCost.value}/L\n` +
-            `- Rendimiento: ${efficiency.value} ${currentProfileData.distanceUnit}/L\n` +
-            `- Ganancia Neta Deseada: ${currentProfileData.currencySymbol}${netGoal.value}/${currentProfileData.distanceUnit}\n\n` +
-            `¡Listo! Tu asistente de rentabilidad y el semáforo están activos.`
-          );
-          
-          profitabilityForm.reset();
-          updateDashboardStats();
-          switchView(dashboardView);
-        }, 1200);
-        return;
-      }
-
-      submitBtn.innerHTML = `<span>Activando semáforo...</span> <div class="spinner"></div>`;
-      try {
-        let updatePayload = {
-          fuel_cost: parseFloat(fuelCost.value),
-          fuel_efficiency: parseFloat(efficiency.value),
-          desired_net_profit: parseFloat(netGoal.value),
-          settings_configured: true,
-          semaforo_active: true,
-          active_app: activeApp.value
-        };
-
-        let { error } = await supabase
-          .from('profiles')
-          .update(updatePayload)
-          .eq('id', currentSessionUser.id);
-
-        // Graceful retry if active_app column doesn't exist in Supabase profiles yet
-        if (error && error.message && error.message.includes('active_app')) {
-          console.warn('active_app column does not exist on profiles table, retrying without it...');
-          delete updatePayload.active_app;
-          const { error: retryError } = await supabase
-            .from('profiles')
-            .update(updatePayload)
-            .eq('id', currentSessionUser.id);
-          error = retryError;
-        }
-
-        if (error) throw error;
-
-        // Update local session properties
-        currentProfileData.fuel_cost = parseFloat(fuelCost.value);
-        currentProfileData.fuel_efficiency = parseFloat(efficiency.value);
-        currentProfileData.desired_net_profit = parseFloat(netGoal.value);
-        currentProfileData.active_app = activeApp.value;
-        currentProfileData.semaforo_active = true;
-        currentProfileData.settings_configured = true;
-        if (userProfile) userProfile.settings_configured = true;
-
-        alert(`¡Configuración guardada y semáforo de rentabilidad activado con éxito!\nTrabajando en: ${activeApp.value}`);
-        
-        profitabilityForm.reset();
-        updateDashboardStats();
-        switchView(dashboardView);
-      } catch (err) {
-        console.error(err);
-        setError('profitNetGoal', err.message || 'Error al guardar la configuración.');
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHtml;
-      }
-    }
-  });
-
-  // --- Profile Settings Form Submit ---
-  settingsForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    let isValid = true;
-
-    const country = settingsCountry;
-    const phone = settingsPhone;
-    const oldPassword = document.getElementById('settingsOldPassword');
-    const password = document.getElementById('settingsPassword');
-    const confirmPassword = document.getElementById('settingsConfirmPassword');
-
-    // Validation
-    if (!country.value) {
-      setError('settingsCountry', 'Por favor selecciona tu país de procedencia.');
-      isValid = false;
-    } else {
-      clearError('settingsCountry');
-    }
-
-    if (!phone.value.trim()) {
-      setError('settingsPhone', 'El número de celular es requerido.');
-      isValid = false;
-    } else if (!/^\d{7,14}$/.test(phone.value.replace(/[\s-]/g, ''))) {
-      setError('settingsPhone', 'Ingresa un número celular válido (solo números, entre 7 y 14 dígitos).');
-      isValid = false;
-    } else {
-      clearError('settingsPhone');
-    }
-
-    // Three-field Password validation
-    const hasPasswordChange = oldPassword.value || password.value || confirmPassword.value;
-    if (hasPasswordChange) {
-      if (!oldPassword.value) {
-        setError('settingsOldPassword', 'Debes ingresar tu contraseña anterior para realizar el cambio.');
-        isValid = false;
-      } else {
-        clearError('settingsOldPassword');
-      }
-
-      if (!password.value) {
-        setError('settingsPassword', 'Ingresa la nueva contraseña.');
-        isValid = false;
-      } else if (password.value.length < 8) {
-        setError('settingsPassword', 'La nueva contraseña debe tener al menos 8 caracteres.');
-        isValid = false;
-      } else {
-        clearError('settingsPassword');
-      }
-
-      if (!confirmPassword.value) {
-        setError('settingsConfirmPassword', 'Repite la nueva contraseña.');
-        isValid = false;
-      } else if (confirmPassword.value !== password.value) {
-        setError('settingsConfirmPassword', 'Las contraseñas nuevas no coinciden.');
-        isValid = false;
-      } else {
-        clearError('settingsConfirmPassword');
-      }
-    } else {
-      clearError('settingsOldPassword');
-      clearError('settingsPassword');
-      clearError('settingsConfirmPassword');
-    }
-
-    if (isValid && currentSessionUser) {
-      const submitBtn = document.getElementById('settingsSubmitBtn');
-      const originalHtml = submitBtn.innerHTML;
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `<span>Guardando cambios...</span> <div class="spinner"></div>`;
-
-      const selectedConfig = countryConfig[country.value];
-      const fullPhone = `${selectedConfig.prefix} ${phone.value.trim()}`;
-
-      // Fallback Mode if Supabase is not configured
-      if (!isConfigured) {
-        setTimeout(() => {
-          submitBtn.disabled = false;
-          submitBtn.innerHTML = originalHtml;
-
-          // Update local details
-          currentProfileData.country = country.value;
-          currentProfileData.phone = fullPhone;
-          currentProfileData.currency = selectedConfig.currency;
-          currentProfileData.currencySymbol = selectedConfig.currencySymbol;
-          currentProfileData.distanceUnit = selectedConfig.unit;
-          currentProfileData.distanceUnitLabel = selectedConfig.unitLabel;
-
-          let passChangeMsg = '';
-          if (password.value) {
-            passChangeMsg = '\n- Contraseña actualizada exitosamente (Simulado).';
-          }
-
-          alert(`¡Configuración de Perfil Actualizada (Modo Demo)!\n\n- País: ${country.value}\n- Celular: ${fullPhone}\n- Divisa: ${selectedConfig.currency}\n- Unidad: ${selectedConfig.unitLabel}${passChangeMsg}`);
-          
-          updateDashboardStats();
-          
-          // Pre-fill the profitability form with current values and update units
-          document.getElementById('profitFuelCost').value = currentProfileData.fuel_cost || '';
-          document.getElementById('profitEfficiency').value = currentProfileData.fuel_efficiency || '';
-          document.getElementById('profitNetGoal').value = currentProfileData.desired_net_profit || '';
-          menuHomeBtn.classList.add('active');
-          menuSettingsBtn.classList.remove('active');
-          menuAppsBtn.classList.remove('active');
-          setupProfitabilityLabels();
-          
-          switchView(profitabilityView);
-        }, 1200);
-        return;
-      }
-
-      try {
-        // 1. Verify old password first
-        if (password.value) {
-          const { error: verifyError } = await supabase.auth.signInWithPassword({
-            email: currentSessionUser.email,
-            password: oldPassword.value
-          });
-          if (verifyError) {
-            setError('settingsOldPassword', 'La contraseña anterior es incorrecta.');
-            throw new Error('La contraseña anterior es incorrecta.');
-          }
-        }
-
-        // 2. Update Profile Fields in Database
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            country: country.value,
-            phone: fullPhone,
-            currency: selectedConfig.currency,
-            distance_unit: selectedConfig.unit
-          })
-          .eq('id', currentSessionUser.id);
-
-        if (profileError) throw profileError;
-
-        // 3. Update Password if specified
-        if (password.value) {
-          const { error: passwordError } = await supabase.auth.updateUser({
-            password: password.value
-          });
-          if (passwordError) throw passwordError;
-        }
-
-        // Update local session details
-        currentProfileData.country = country.value;
-        currentProfileData.phone = fullPhone;
-        currentProfileData.currency = selectedConfig.currency;
-        currentProfileData.currencySymbol = selectedConfig.currencySymbol;
-        currentProfileData.distanceUnit = selectedConfig.unit;
-        currentProfileData.distanceUnitLabel = selectedConfig.unitLabel;
-
-        alert('¡Cambios guardados con éxito en Supabase!');
-        
-        updateDashboardStats();
-        
-        // Pre-fill the profitability form with current values and update units
-        document.getElementById('profitFuelCost').value = currentProfileData.fuel_cost || '';
-        document.getElementById('profitEfficiency').value = currentProfileData.fuel_efficiency || '';
-        document.getElementById('profitNetGoal').value = currentProfileData.desired_net_profit || '';
-        menuHomeBtn.classList.add('active');
-        menuSettingsBtn.classList.remove('active');
-        menuAppsBtn.classList.remove('active');
-        setupProfitabilityLabels();
-        
-        switchView(profitabilityView);
-
-      } catch (err) {
-        console.error(err);
-        if (err.message !== 'La contraseña anterior es incorrecta.') {
-          setError('settingsPassword', err.message || 'Error al guardar cambios.');
-        }
-      } finally {
-        submitBtn.disabled = false;
-        submitBtn.innerHTML = originalHtml;
-      }
-    }
-  });
-
-  // Real-time input validation clearers
-  const inputsToTrack = [
-    'loginEmail', 'loginPassword', 
-    'registerName', 'registerEmail', 'registerPhone', 'registerPassword', 'registerConfirmPassword',
-    'profitFuelCost', 'profitEfficiency', 'profitNetGoal', 'profitActiveApp',
-    'settingsPhone', 'settingsOldPassword', 'settingsPassword', 'settingsConfirmPassword'
-  ];
-  inputsToTrack.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('input', () => clearError(id));
-      el.addEventListener('change', () => clearError(id));
-    }
-  });
 });

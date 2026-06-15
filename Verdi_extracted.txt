@@ -1,0 +1,93 @@
+﻿1. Captura automática de ofertas de viaje
+El sistema se ejecuta sobre aplicaciones como Uber, DiDi, Cabify, etc., mediante:
+Overlay (ventana flotante) 
+MediaProjection 
+Servicios de Accesibilidad 
+Su objetivo es detectar automáticamente las ofertas de viaje mostradas en pantalla. 
+
+2. Lectura inteligente mediante OCR
+El motor OCR local (sin depender de internet) extrae información como:
+Precio del viaje 
+Distancia 
+Tiempo estimado 
+Todo en tiempo real. 
+
+3. Configuración de costos operativos
+El conductor puede ingresar sus propios parámetros:
+Precio del combustible 
+Rendimiento del vehículo 
+Ganancia mínima deseada 
+Estos valores son utilizados por el algoritmo para calcular la rentabilidad de cada viaje. 
+
+4. Almacenamiento local de configuraciones
+La aplicación guarda los parámetros del usuario mediante:
+SharedPreferences 
+Base de datos Room 
+Beneficios:
+Acceso instantáneo 
+Funcionamiento sin conexión 
+Menor consumo de recursos 
+
+5. Cálculo automático de rentabilidad
+Función principal del sistema.
+El algoritmo calcula:
+Ingreso del viaje 
+Costo estimado de combustible 
+Ganancia neta 
+Cumplimiento de la ganancia mínima deseada 
+Y clasifica automáticamente la oferta. 
+
+6. Sistema de semáforo inteligente
+La aplicación muestra la rentabilidad mediante colores:
+🟢 Verde → Viaje rentable
+🟡 Amarillo → Viaje aceptable o marginal
+🔴 Rojo → Viaje poco rentable o con pérdida
+Es la característica central del producto. 
+
+7. Burbuja flotante inteligente (Overlay)
+Una burbuja permanece visible sobre otras aplicaciones.
+Funciones:
+Mostrar el resultado del análisis 
+Cambiar de color automáticamente 
+Mantenerse visible durante la oferta de viaje 
+Operar sin interrumpir la navegación del conductor 
+
+8. Estados dinámicos de la burbuja
+Estado Grafito
+OCR activo 
+Esperando ofertas 
+Sin alertas 
+Estado Verde
+Oferta altamente rentable 
+Estado Amarillo
+Oferta medianamente rentable 
+Estado Rojo
+Oferta no recomendable 
+El cambio de estado debe ocurrir en menos de 500 ms. 
+
+9. Burbuja arrastrable
+El usuario puede:
+Mover la burbuja a cualquier lugar de la pantalla. 
+Guardar su posición preferida. 
+Mantener visible el estado de color mientras exista la oferta. 
+
+10. Soporte internacional
+Configuración regional adaptable:
+Distancia
+Kilómetros (KM) 
+Millas (Mi) 
+Combustible
+Litros (L) 
+Galones (Gal) 
+Consumo
+KM/L 
+Mi/Gal 
+L/100 KM 
+Monedas
+CLP 
+USD 
+COP 
+MXN 
+Otras 
+Esto permite escalar la aplicación a Latinoamérica, EE.UU. y Europa sin modificar la lógica interna.
+
