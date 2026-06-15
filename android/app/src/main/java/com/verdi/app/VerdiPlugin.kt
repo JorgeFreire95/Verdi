@@ -33,7 +33,7 @@ class VerdiPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun checkPermissions(call: PluginCall) {
+    override fun checkPermissions(call: PluginCall) {
         val context = context
         val overlayGranted = Settings.canDrawOverlays(context)
         val accessibilityGranted = isAccessibilityServiceEnabled(context, VerdiAccessibilityService::class.java)
@@ -45,7 +45,7 @@ class VerdiPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    override fun requestPermissions(call: PluginCall) {
         val type = call.getString("type", "")
         val context = context
         if (type == "overlay") {
