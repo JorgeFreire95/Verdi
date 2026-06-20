@@ -22,6 +22,7 @@ const STATE = {
   vehicleEfficiency: 12.0,
   minHourlyEarnings: 15000,
   minPerDistance: 350,
+  lastCapturedTime: 0,
   stats: {
     total: 0,
     green: 0,
@@ -47,7 +48,6 @@ function cacheDom() {
   elements.unitConsumption = document.getElementById('unit-consumption');
   elements.fuelPriceInput = document.getElementById('fuel-price');
   elements.efficiencyInput = document.getElementById('vehicle-efficiency');
-  elements.minEarningsInput = document.getElementById('min-earnings');
   elements.minPerDistInput = document.getElementById('min-per-dist');
   
   // Dashboard Status Controls
@@ -74,18 +74,7 @@ function cacheDom() {
   elements.statsGreen = document.getElementById('stats-green');
   elements.statsRed = document.getElementById('stats-red');
   
-  // Simulator Inputs & Results
-  elements.simPrice = document.getElementById('sim-price');
-  elements.simDistance = document.getElementById('sim-distance');
-  elements.simTime = document.getElementById('sim-time');
-  elements.btnRunSim = document.getElementById('btn-run-simulation');
-  elements.simResultCard = document.getElementById('sim-result-card');
-  elements.simResultLight = document.getElementById('sim-result-light');
-  elements.simResultTitle = document.getElementById('sim-result-title');
-  elements.simResFuel = document.getElementById('sim-res-fuel');
-  elements.simResNet = document.getElementById('sim-res-net');
-  elements.simResHourly = document.getElementById('sim-res-hourly');
-  elements.simResDecision = document.getElementById('sim-res-decision');
+
   
   // Labels
   elements.lblDistUnits = document.querySelectorAll('.lbl-dist-unit');
@@ -126,7 +115,6 @@ function loadSettings() {
   
   elements.fuelPriceInput.value = STATE.fuelPrice;
   elements.efficiencyInput.value = STATE.vehicleEfficiency;
-  elements.minEarningsInput.value = STATE.minHourlyEarnings;
   elements.minPerDistInput.value = STATE.minPerDistance;
   
   // Update badges
@@ -138,7 +126,6 @@ function loadSettings() {
 function updateSliderBadges() {
   document.getElementById('val-fuel-price').innerText = formatCurrency(elements.fuelPriceInput.value);
   document.getElementById('val-efficiency').innerText = `${elements.efficiencyInput.value} ${STATE.distanceUnit}/${STATE.fuelUnit}`;
-  document.getElementById('val-min-earnings').innerText = `${formatCurrency(elements.minEarningsInput.value)}/hr`;
   document.getElementById('val-min-per-dist').innerText = `${formatCurrency(elements.minPerDistInput.value)}/${STATE.distanceUnit}`;
 }
 
@@ -157,7 +144,6 @@ function saveSettings(e) {
   
   STATE.fuelPrice = parseFloat(elements.fuelPriceInput.value);
   STATE.vehicleEfficiency = parseFloat(elements.efficiencyInput.value);
-  STATE.minHourlyEarnings = parseFloat(elements.minEarningsInput.value);
   STATE.minPerDistance = parseFloat(elements.minPerDistInput.value);
   
   localStorage.setItem('verdi_settings', JSON.stringify(STATE));
@@ -201,6 +187,18 @@ async function checkAndroidPermissions() {
     updatePermissionUI('overlay', res.overlay);
     updatePermissionUI('accessibility', res.accessibility);
     
+    // Update connected app status dynamically
+    if (res.lastConnectedApp) {
+      const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
+      if (timeSinceCapture > 6000) {
+        elements.liveStatusTitle.innerText = `Conectado a ${res.lastConnectedApp}`;
+        elements.liveStatusDesc.innerText = `Esperando viaje...`;
+        elements.liveTrafficLight.className = 'traffic-light-preview graphite';
+        elements.liveMetricsContainer.style.display = 'none';
+        elements.liveBubbleText.innerText = '🔘';
+      }
+    }
+
     // Toggle active classes on global status badge
     if (res.accessibility && res.overlay) {
       elements.serviceBadge.classList.add('active');
@@ -298,13 +296,12 @@ function calculateProfitability(price, distance, timeMins) {
   // Decide Traffic Light Color
   let decision = 'RED';
   if (netProfit > 0) {
-    const pctHourly = hourlyRate / STATE.minHourlyEarnings;
     const pctDist = distanceRate / STATE.minPerDistance;
     
-    // Both metrics must be fully satisfied for Green
-    if (pctHourly >= 1.0 && pctDist >= 1.0) {
+    // Decidir color basado únicamente en ganancia por distancia
+    if (pctDist >= 1.0) {
       decision = 'GREEN';
-    } else if (pctHourly >= 0.7 && pctDist >= 0.7) {
+    } else if (pctDist >= 0.7) {
       decision = 'YELLOW';
     }
   }
@@ -317,56 +314,7 @@ function calculateProfitability(price, distance, timeMins) {
   };
 }
 
-// Run simulation from form
-function runSimulation() {
-  const price = parseFloat(elements.simPrice.value);
-  const distance = parseFloat(elements.simDistance.value);
-  const time = parseFloat(elements.simTime.value);
-  
-  if (isNaN(price) || isNaN(distance) || isNaN(time)) return;
-  
-  const results = calculateProfitability(price, distance, time);
-  
-  // Display Results
-  elements.simResFuel.innerText = formatCurrency(results.fuelCost);
-  elements.simResNet.innerText = formatCurrency(results.netProfit);
-  elements.simResHourly.innerText = `${formatCurrency(results.hourlyRate)}/h`;
-  
-  // Decisión translation
-  let decisionText = '';
-  let borderClass = 'graphite';
-  if (results.decision === 'GREEN') {
-    decisionText = '🟢 Rentable';
-    borderClass = 'green';
-    STATE.stats.green++;
-  } else if (results.decision === 'YELLOW') {
-    decisionText = '🟡 Aceptable';
-    borderClass = 'yellow';
-  } else {
-    decisionText = '🔴 No recomendado';
-    borderClass = 'red';
-    STATE.stats.red++;
-  }
-  
-  STATE.stats.total++;
-  elements.simResDecision.innerText = decisionText;
-  
-  // Update classes
-  elements.simResultCard.className = `simulator-result-box ${borderClass}`;
-  
-  // Add to UI history list
-  addTripToHistory({
-    price,
-    distance,
-    time,
-    decision: results.decision,
-    netProfit: results.netProfit,
-    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-  });
-  
-  // Update dashboard stats counters
-  updateStatsCounters();
-}
+
 
 function updateStatsCounters() {
   elements.statsTotal.innerText = STATE.stats.total;
@@ -416,6 +364,9 @@ function setupNativeListeners() {
   try {
     // Listen for trips captured by background OCR/Accessibility service
     VerdiPlugin.addListener('onTripCaptured', (trip) => {
+      // Record capture time to prevent immediate override by connection status
+      STATE.lastCapturedTime = Date.now();
+
       // trip keys: price, distance, timeMins
       const results = calculateProfitability(trip.price, trip.distance, trip.timeMins);
       
@@ -468,6 +419,19 @@ function setupNativeListeners() {
       // Refresh stats
       updateStatsCounters();
     });
+
+    // Listen for driver app foreground activity notifications
+    VerdiPlugin.addListener('onAppConnected', (data) => {
+      const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
+      // Wait at least 6 seconds after a trip check before returning to graphite searching state
+      if (timeSinceCapture > 6000) {
+        elements.liveStatusTitle.innerText = `Conectado a ${data.appName}`;
+        elements.liveStatusDesc.innerText = `Esperando viaje...`;
+        elements.liveTrafficLight.className = 'traffic-light-preview graphite';
+        elements.liveMetricsContainer.style.display = 'none';
+        elements.liveBubbleText.innerText = '🔘';
+      }
+    });
   } catch(err) {
     console.warn('Cannot register native callbacks, browser simulation running.');
   }
@@ -507,7 +471,6 @@ function initEvents() {
   
   // Forms submit
   elements.costsForm.addEventListener('submit', saveSettings);
-  elements.btnRunSim.addEventListener('click', runSimulation);
   
   // Permission Toggles
   elements.btnToggleOverlay.addEventListener('click', () => toggleAndroidPermission('overlay'));
@@ -537,6 +500,9 @@ window.addEventListener('DOMContentLoaded', () => {
   setupNativeListeners();
   checkAndroidPermissions();
   
+  // Refrescar permisos y conexión de apps periódicamente cada 2 segundos
+  setInterval(checkAndroidPermissions, 2000);
+
   // Initialize Lucide icons
   if (window.lucide) {
     window.lucide.createIcons();

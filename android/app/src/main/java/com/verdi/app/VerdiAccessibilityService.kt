@@ -9,6 +9,7 @@ import android.os.Build
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.regex.Pattern
+import android.widget.Toast
 
 class VerdiAccessibilityService : AccessibilityService() {
 
@@ -25,6 +26,9 @@ class VerdiAccessibilityService : AccessibilityService() {
     private var lastCapturedTime = 0L
     private val captureCooldown = 2000L // avoid spamming calculations within 2 seconds of the same trip
 
+    private var lastNotifiedPkg = ""
+    private var lastNotifiedTime = 0L
+
     private val configReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.verdi.app.CONFIG_UPDATED") {
@@ -35,15 +39,25 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
-        loadConfig()
-        
-        // Register receiver for dynamic config updates
-        val filter = IntentFilter("com.verdi.app.CONFIG_UPDATED")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(configReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(configReceiver, filter)
+        Toast.makeText(this, "Verdi: Servicio Creado", Toast.LENGTH_SHORT).show()
+        try {
+            loadConfig()
+            
+            // Register receiver for dynamic config updates
+            val filter = IntentFilter("com.verdi.app.CONFIG_UPDATED")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(configReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(configReceiver, filter)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+    }
+
+    override fun onServiceConnected() {
+        super.onServiceConnected()
+        Toast.makeText(this, "Verdi: Servicio Conectado a Accesibilidad", Toast.LENGTH_SHORT).show()
     }
 
     private fun loadConfig() {
@@ -62,6 +76,21 @@ class VerdiAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: ""
         
+        // Diagnóstico: Mostrar Toast temporal con el nombre del paquete activo (excepto sistema y launcher)
+        if (pkg.isNotBlank() && 
+            !pkg.contains("android", ignoreCase = true) && 
+            !pkg.contains("systemui", ignoreCase = true) && 
+            !pkg.contains("launcher", ignoreCase = true) && 
+            !pkg.contains("verdi", ignoreCase = true)
+        ) {
+            val now = System.currentTimeMillis()
+            if (pkg != lastNotifiedPkg || now - lastNotifiedTime > 5000) {
+                lastNotifiedPkg = pkg
+                lastNotifiedTime = now
+                Toast.makeText(applicationContext, "Diagnóstico: Activo $pkg", Toast.LENGTH_SHORT).show()
+            }
+        }
+
         // Scan ride-sharing packages: Uber, DiDi, Cabify
         // For general development / debugging, scan any active screen that changes
         if (pkg.contains("uber", ignoreCase = true) || 
@@ -69,6 +98,8 @@ class VerdiAccessibilityService : AccessibilityService() {
             pkg.contains("cabify", ignoreCase = true) ||
             pkg.contains("verdi", ignoreCase = true) // allow self-scanning for testing
         ) {
+            notifyAppConnected(pkg)
+
             val rootNode = rootInActiveWindow ?: return
             
             // Collect all visible text nodes
@@ -78,6 +109,34 @@ class VerdiAccessibilityService : AccessibilityService() {
             // Parse for travel metrics
             parseAndEvaluateScreenTexts(texts)
         }
+    }
+
+    private fun notifyAppConnected(pkg: String) {
+        if (pkg.contains("verdi", ignoreCase = true)) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (pkg == lastNotifiedPkg && now - lastNotifiedTime < 5000) {
+            return
+        }
+        lastNotifiedPkg = pkg
+        lastNotifiedTime = now
+
+        val cleanName = when {
+            pkg.contains("uber", ignoreCase = true) -> "Uber"
+            pkg.contains("didi", ignoreCase = true) -> "DiDi"
+            pkg.contains("cabify", ignoreCase = true) -> "Cabify"
+            else -> "App"
+        }
+
+        // Guardar persistente en SharedPreferences
+        val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+        prefs.edit().putString("lastConnectedApp", cleanName).apply()
+
+        // Mostrar un Toast de diagnóstico
+        Toast.makeText(applicationContext, "Verdi: Conectado a $cleanName", Toast.LENGTH_SHORT).show()
+
+        VerdiPlugin.onAppConnected(cleanName)
     }
 
     private fun findTextNodes(node: AccessibilityNodeInfo?, texts: ArrayList<String>) {
@@ -156,12 +215,11 @@ class VerdiAccessibilityService : AccessibilityService() {
         // Decision logic
         var decision = "RED"
         if (netProfit > 0) {
-            val pctHourly = hourlyRate / minHourlyEarnings.toDouble()
             val pctDist = distanceRate / minPerDistance.toDouble()
 
-            if (pctHourly >= 1.0 && pctDist >= 1.0) {
+            if (pctDist >= 1.0) {
                 decision = "GREEN"
-            } else if (pctHourly >= 0.7 && pctDist >= 0.7) {
+            } else if (pctDist >= 0.7) {
                 decision = "YELLOW"
             }
         }

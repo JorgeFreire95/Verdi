@@ -184,13 +184,6 @@
             <input type="range" id="vehicle-efficiency" min="5" max="30" step="0.5" value="12.0">
           </div>
 
-          <div class="form-group">
-            <div class="label-info">
-              <label for="min-earnings"><i data-lucide="clock"></i> Ganancia Deseada (por Hora)</label>
-              <span class="range-value" id="val-min-earnings">15000</span>
-            </div>
-            <input type="range" id="min-earnings" min="2000" max="40000" step="500" value="15000">
-          </div>
 
           <div class="form-group">
             <div class="label-info">
@@ -206,77 +199,19 @@
         </form>
       </section>
 
-      <!-- TAB: SIMULATOR & LOGS -->
-      <section id="tab-simulator" class="tab-content">
-        <div class="grid-two-columns">
-          
-          <!-- Test Simulator -->
-          <div class="panel-card">
-            <div class="section-title">
-              <i data-lucide="terminal"></i>
-              <h2>Simulador de Viaje</h2>
-            </div>
-            
-            <form id="simulator-form" class="settings-form">
-              <div class="form-group">
-                <label for="sim-price">Precio de la Oferta ($)</label>
-                <input type="number" id="sim-price" value="8500" required>
-              </div>
-              
-              <div class="form-group">
-                <label for="sim-distance">Distancia del Viaje (<span class="lbl-dist-unit">km</span>)</label>
-                <input type="number" id="sim-distance" step="0.1" value="7.2" required>
-              </div>
-              
-              <div class="form-group">
-                <label for="sim-time">Tiempo Estimado (minutos)</label>
-                <input type="number" id="sim-time" value="15" required>
-              </div>
-              
-              <button type="button" class="btn-primary" id="btn-run-simulation">
-                <i data-lucide="play"></i> Simular Análisis
-              </button>
-            </form>
-
-            <div class="simulator-result-box graphite" id="sim-result-card">
-              <div class="sim-light-color" id="sim-result-light"></div>
-              <div class="sim-result-details">
-                <h4 id="sim-result-title">Resultados de Simulación</h4>
-                <div class="sim-metrics-grid">
-                  <div class="sim-metric">
-                    <span class="sm-label">Combustible</span>
-                    <span class="sm-val" id="sim-res-fuel">$0</span>
-                  </div>
-                  <div class="sim-metric">
-                    <span class="sm-label">Ganancia Neta</span>
-                    <span class="sm-val" id="sim-res-net">$0</span>
-                  </div>
-                  <div class="sim-metric">
-                    <span class="sm-label">Tasa Horaria</span>
-                    <span class="sm-val" id="sim-res-hourly">$0/hr</span>
-                  </div>
-                  <div class="sim-metric">
-                    <span class="sm-label">Decisión</span>
-                    <span class="sm-val" id="sim-res-decision">Pendiente</span>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <!-- TAB: HISTORIAL -->
+      <section id="tab-history" class="tab-content">
+        <!-- Trip History Logs -->
+        <div class="panel-card">
+          <div class="section-title">
+            <i data-lucide="history"></i>
+            <h2>Historial del Turno</h2>
           </div>
-
-          <!-- Trip History Logs -->
-          <div class="panel-card">
-            <div class="section-title">
-              <i data-lucide="history"></i>
-              <h2>Historial del Turno</h2>
-            </div>
-            <div class="history-list-wrapper">
-              <ul class="history-list" id="history-container">
-                <li class="empty-history">No hay viajes capturados aún en este turno.</li>
-              </ul>
-            </div>
+          <div class="history-list-wrapper">
+            <ul class="history-list" id="history-container">
+              <li class="empty-history">No hay viajes capturados aún en este turno.</li>
+            </ul>
           </div>
-
         </div>
       </section>
 
@@ -292,9 +227,9 @@
         <i data-lucide="sliders"></i>
         <span>Costos</span>
       </button>
-      <button class="nav-item" data-tab="tab-simulator">
-        <i data-lucide="calculator"></i>
-        <span>Simulador</span>
+      <button class="nav-item" data-tab="tab-history">
+        <i data-lucide="history"></i>
+        <span>Historial</span>
       </button>
     </nav>
   </div>

@@ -25,6 +25,13 @@ class VerdiPlugin : Plugin() {
             }
             instance?.notifyListeners("onTripCaptured", trip)
         }
+
+        fun onAppConnected(appName: String) {
+            val app = JSObject().apply {
+                put("appName", appName)
+            }
+            instance?.notifyListeners("onAppConnected", app)
+        }
     }
 
     override fun load() {
@@ -33,19 +40,23 @@ class VerdiPlugin : Plugin() {
     }
 
     @PluginMethod
-    fun checkPermissions(call: PluginCall) {
+    override fun checkPermissions(call: PluginCall) {
         val context = context
         val overlayGranted = Settings.canDrawOverlays(context)
         val accessibilityGranted = isAccessibilityServiceEnabled(context, VerdiAccessibilityService::class.java)
 
+        val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+        val lastConnectedApp = prefs.getString("lastConnectedApp", "")
+
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
         ret.put("accessibility", accessibilityGranted)
+        ret.put("lastConnectedApp", lastConnectedApp)
         call.resolve(ret)
     }
 
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    override fun requestPermissions(call: PluginCall) {
         val type = call.getString("type", "")
         val context = context
         if (type == "overlay") {
