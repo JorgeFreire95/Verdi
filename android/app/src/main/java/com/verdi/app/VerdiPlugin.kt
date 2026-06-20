@@ -48,10 +48,19 @@ class VerdiPlugin : Plugin() {
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val lastConnectedApp = prefs.getString("lastConnectedApp", "")
 
+        val uberInstalled = isAppInstalled(context, "com.ubercab.driver")
+        val didiInstalled = isAppInstalled(context, "com.didichuxing.driver") || isAppInstalled(context, "com.didiglobal.driver")
+        val cabifyInstalled = isAppInstalled(context, "com.cabify.driver")
+
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
         ret.put("accessibility", accessibilityGranted)
+        ret.put("isServiceRunning", VerdiAccessibilityService.isServiceRunning)
+        ret.put("activeApp", VerdiAccessibilityService.activeApp)
         ret.put("lastConnectedApp", lastConnectedApp)
+        ret.put("uberInstalled", uberInstalled)
+        ret.put("didiInstalled", didiInstalled)
+        ret.put("cabifyInstalled", cabifyInstalled)
         call.resolve(ret)
     }
 
@@ -134,5 +143,14 @@ class VerdiPlugin : Plugin() {
             }
         }
         return false
+    }
+
+    private fun isAppInstalled(context: Context, packageName: String): Boolean {
+        return try {
+            context.packageManager.getPackageInfo(packageName, 0)
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 }

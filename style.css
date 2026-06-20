@@ -755,3 +755,210 @@ input[type="range"]::-webkit-slider-thumb:active {
 .nav-item.active i {
   transform: translateY(-2px);
 }
+
+/* Connection Status Panel & Apps Indicators */
+.connection-status-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 20px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.connection-status-panel .panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 8px;
+}
+
+.connection-status-panel .panel-header i {
+  color: var(--color-green);
+  width: 16px;
+  height: 16px;
+}
+
+.connection-status-panel .panel-header h3 {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.app-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.app-status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-status-item .app-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-status-item .app-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  user-select: none;
+}
+
+.app-status-item .app-logo.uber {
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.app-status-item .app-logo.didi {
+  background: #FF8A00;
+}
+
+.app-status-item .app-logo.cabify {
+  background: #7352FF;
+}
+
+.app-status-item .app-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: color 0.3s;
+}
+
+.app-status-item .app-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-status-item .pulse-dot {
+  width: 7px;
+  height: 7px;
+  background-color: var(--text-muted);
+  border-radius: 50%;
+  transition: all 0.3s;
+}
+
+.app-status-item .indicator-text {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+/* Active Connection States */
+.app-status-item.active {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.app-status-item.active .app-name {
+  color: var(--text-primary);
+}
+
+.app-status-item.active .indicator-text {
+  color: var(--text-primary);
+}
+
+/* Uber Active Pulse */
+.app-status-item.active.uber {
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.04);
+}
+.app-status-item.active.uber .pulse-dot {
+  background-color: #FFF;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+  animation: pulse-uber 1.8s infinite;
+}
+
+/* DiDi Active Pulse */
+.app-status-item.active.didi {
+  border-color: rgba(255, 138, 0, 0.3);
+  background: rgba(255, 138, 0, 0.04);
+}
+.app-status-item.active.didi .pulse-dot {
+  background-color: #FF8A00;
+  box-shadow: 0 0 10px rgba(255, 138, 0, 0.8);
+  animation: pulse-didi 1.8s infinite;
+}
+
+/* Cabify Active Pulse */
+.app-status-item.active.cabify {
+  border-color: rgba(115, 82, 255, 0.3);
+  background: rgba(115, 82, 255, 0.04);
+}
+.app-status-item.active.cabify .pulse-dot {
+  background-color: #7352FF;
+  box-shadow: 0 0 10px rgba(73, 82, 255, 0.8);
+  animation: pulse-cabify 1.8s infinite;
+}
+
+@keyframes pulse-uber {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+@keyframes pulse-didi {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 138, 0, 0.6); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(255, 138, 0, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 138, 0, 0); }
+}
+
+@keyframes pulse-cabify {
+  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(115, 82, 255, 0.6); }
+  70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(115, 82, 255, 0); }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(115, 82, 255, 0); }
+}
+
+/* App Metadata and Install Badges */
+.app-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.app-install-badge {
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+  width: fit-content;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  transition: all 0.3s ease;
+}
+
+.app-install-badge.installed {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--color-green);
+  border: 1px solid rgba(16, 185, 129, 0.15);
+}
+
+.app-install-badge.not-installed {
+  background: rgba(239, 68, 68, 0.08);
+  color: var(--color-red);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+}
+

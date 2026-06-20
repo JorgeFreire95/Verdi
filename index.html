@@ -70,6 +70,66 @@
             </div>
             <button class="btn-toggle" id="btn-toggle-accessibility">Otorgar</button>
           </div>
+
+          <div class="status-card" id="card-bubble">
+            <div class="card-icon"><i data-lucide="play"></i></div>
+            <div class="card-details">
+              <h3>Burbuja de Servicio</h3>
+              <p class="status-desc" id="status-bubble-desc">Burbuja desactivada</p>
+            </div>
+            <button class="btn-toggle" id="btn-toggle-bubble">Iniciar</button>
+          </div>
+        </div>
+
+        <!-- Connection Status Panel -->
+        <div class="connection-status-panel">
+          <div class="panel-header">
+            <i data-lucide="link-2"></i>
+            <h3>Conexión de Aplicaciones</h3>
+          </div>
+          <div class="app-status-list">
+            <div class="app-status-item" id="status-app-uber">
+              <div class="app-info">
+                <span class="app-logo uber">U</span>
+                <div class="app-meta">
+                  <span class="app-name">Uber Driver</span>
+                  <span class="app-install-badge" id="install-badge-uber">Detectando...</span>
+                </div>
+              </div>
+              <div class="app-indicator">
+                <span class="pulse-dot"></span>
+                <span class="indicator-text" id="status-text-uber">Inactivo</span>
+              </div>
+            </div>
+            
+            <div class="app-status-item" id="status-app-didi">
+              <div class="app-info">
+                <span class="app-logo didi">D</span>
+                <div class="app-meta">
+                  <span class="app-name">DiDi Conductor</span>
+                  <span class="app-install-badge" id="install-badge-didi">Detectando...</span>
+                </div>
+              </div>
+              <div class="app-indicator">
+                <span class="pulse-dot"></span>
+                <span class="indicator-text" id="status-text-didi">Inactivo</span>
+              </div>
+            </div>
+            
+            <div class="app-status-item" id="status-app-cabify">
+              <div class="app-info">
+                <span class="app-logo cabify">C</span>
+                <div class="app-meta">
+                  <span class="app-name">Cabify Conductor</span>
+                  <span class="app-install-badge" id="install-badge-cabify">Detectando...</span>
+                </div>
+              </div>
+              <div class="app-indicator">
+                <span class="pulse-dot"></span>
+                <span class="indicator-text" id="status-text-cabify">Inactivo</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Realtime Traffic Light Preview -->

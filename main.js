@@ -28,7 +28,13 @@ const STATE = {
     green: 0,
     red: 0
   },
-  history: []
+  history: [],
+  installations: {
+    uber: false,
+    didi: false,
+    cabify: false
+  },
+  bubbleActive: false
 };
 
 // DOM Elements
@@ -73,8 +79,21 @@ function cacheDom() {
   elements.statsTotal = document.getElementById('stats-total');
   elements.statsGreen = document.getElementById('stats-green');
   elements.statsRed = document.getElementById('stats-red');
+  // App Status items in dashboard
+  elements.appUber = document.getElementById('status-app-uber');
+  elements.appDiDi = document.getElementById('status-app-didi');
+  elements.appCabify = document.getElementById('status-app-cabify');
+  elements.textUber = document.getElementById('status-text-uber');
+  elements.textDiDi = document.getElementById('status-text-didi');
+  elements.textCabify = document.getElementById('status-text-cabify');
   
-
+  elements.installUber = document.getElementById('install-badge-uber');
+  elements.installDiDi = document.getElementById('install-badge-didi');
+  elements.installCabify = document.getElementById('install-badge-cabify');
+  
+  elements.cardBubble = document.getElementById('card-bubble');
+  elements.statusBubbleDesc = document.getElementById('status-bubble-desc');
+  elements.btnToggleBubble = document.getElementById('btn-toggle-bubble');
   
   // Labels
   elements.lblDistUnits = document.querySelectorAll('.lbl-dist-unit');
@@ -183,16 +202,53 @@ async function syncConfigToNative() {
 // Check native Android permissions
 async function checkAndroidPermissions() {
   try {
+    console.log("checkAndroidPermissions started");
     const res = await VerdiPlugin.checkPermissions();
+    console.log("checkAndroidPermissions result:", res);
+    
     updatePermissionUI('overlay', res.overlay);
     updatePermissionUI('accessibility', res.accessibility);
     
-    // Update connected app status dynamically
-    if (res.lastConnectedApp) {
+    // Save installation states locally in the state object
+    STATE.installations = {
+      uber: !!res.uberInstalled,
+      didi: !!res.didiInstalled,
+      cabify: !!res.cabifyInstalled
+    };
+
+    // If overlay permission is disabled, turn off active bubble state
+    if (!res.overlay) {
+      STATE.bubbleActive = false;
+    }
+    updateBubbleUI(STATE.bubbleActive);
+
+    // Check if the accessibility service is running in background
+    const isServiceActive = res.isServiceRunning || (res.accessibility && res.overlay);
+
+    if (isServiceActive) {
+      updateAppConnectionUI(res.activeApp || 'Ninguna');
+      
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
       if (timeSinceCapture > 6000) {
-        elements.liveStatusTitle.innerText = `Conectado a ${res.lastConnectedApp}`;
-        elements.liveStatusDesc.innerText = `Esperando viaje...`;
+        const currentApp = res.activeApp;
+        if (currentApp && currentApp !== 'Ninguna' && currentApp !== 'Desconectado' && currentApp !== 'Verdi (Pruebas)') {
+          elements.liveStatusTitle.innerText = `Conectado a ${currentApp}`;
+          elements.liveStatusDesc.innerText = `Esperando viaje... Monitoreando pantalla de forma activa.`;
+        } else {
+          elements.liveStatusTitle.innerText = `Buscando Conexión...`;
+          elements.liveStatusDesc.innerText = `Esperando la apertura de Uber, DiDi o Cabify en primer plano.`;
+        }
+        elements.liveTrafficLight.className = 'traffic-light-preview graphite';
+        elements.liveMetricsContainer.style.display = 'none';
+        elements.liveBubbleText.innerText = '🔘';
+      }
+    } else {
+      updateAppConnectionUI('Ninguna');
+      
+      const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
+      if (timeSinceCapture > 6000) {
+        elements.liveStatusTitle.innerText = `Servicio Inactivo`;
+        elements.liveStatusDesc.innerText = `Por favor, activa los permisos de lectura de pantalla y burbuja flotante para iniciar.`;
         elements.liveTrafficLight.className = 'traffic-light-preview graphite';
         elements.liveMetricsContainer.style.display = 'none';
         elements.liveBubbleText.innerText = '🔘';
@@ -208,9 +264,104 @@ async function checkAndroidPermissions() {
       elements.serviceStatusText.innerText = 'Servicio Inactivo';
     }
   } catch (err) {
-    console.warn('Cannot read native permissions, browser mode active.');
+    console.error('Error in checkAndroidPermissions:', err);
   }
 }
+
+// Update connection status list items in dashboard
+function updateAppConnectionUI(activeApp) {
+  try {
+    if (!elements.appUber) return; // safety check
+    
+    // 1. Update installation badges in UI
+    const inst = STATE.installations || { uber: false, didi: false, cabify: false };
+    
+    const updateBadge = (badgeEl, installed) => {
+      if (!badgeEl) return;
+      if (installed) {
+        badgeEl.innerText = "Instalada";
+        badgeEl.className = "app-install-badge installed";
+      } else {
+        badgeEl.innerText = "No detectada";
+        badgeEl.className = "app-install-badge not-installed";
+      }
+    };
+
+    updateBadge(elements.installUber, inst.uber);
+    updateBadge(elements.installDiDi, inst.didi);
+    updateBadge(elements.installCabify, inst.cabify);
+
+    // 2. Clean classes and texts for connection states
+    elements.appUber.classList.remove('active');
+    elements.appUber.classList.remove('uber');
+    elements.appDiDi.classList.remove('active');
+    elements.appDiDi.classList.remove('didi');
+    elements.appCabify.classList.remove('active');
+    elements.appCabify.classList.remove('cabify');
+    
+    elements.textUber.innerText = inst.uber ? 'Segundo plano' : 'No detectada';
+    elements.textDiDi.innerText = inst.didi ? 'Segundo plano' : 'No detectada';
+    elements.textCabify.innerText = inst.cabify ? 'Segundo plano' : 'No detectada';
+
+    // 3. Highlight active foreground app
+    if (activeApp === 'Uber') {
+      elements.appUber.classList.add('active');
+      elements.appUber.classList.add('uber');
+      elements.textUber.innerText = 'Activo';
+    } else if (activeApp === 'DiDi') {
+      elements.appDiDi.classList.add('active');
+      elements.appDiDi.classList.add('didi');
+      elements.textDiDi.innerText = 'Activo';
+    } else if (activeApp === 'Cabify') {
+      elements.appCabify.classList.add('active');
+      elements.appCabify.classList.add('cabify');
+      elements.textCabify.innerText = 'Activo';
+    }
+  } catch (e) {
+    console.error("Error in updateAppConnectionUI:", e);
+  }
+}
+
+// Update service bubble UI card status
+function updateBubbleUI(active) {
+  if (!elements.cardBubble) return;
+  if (active) {
+    elements.cardBubble.classList.add('active');
+    elements.statusBubbleDesc.innerText = 'Burbuja Activa en pantalla';
+    elements.btnToggleBubble.innerText = 'Detener';
+  } else {
+    elements.cardBubble.classList.remove('active');
+    elements.statusBubbleDesc.innerText = 'Burbuja desactivada';
+    elements.btnToggleBubble.innerText = 'Iniciar';
+  }
+}
+
+// Toggle bubble service natively
+async function toggleBubbleService() {
+  try {
+    const res = await VerdiPlugin.checkPermissions();
+    if (!res.overlay) {
+      alert("Por favor, activa primero el permiso de Burbuja Flotante (Dibujar sobre otras apps).");
+      return;
+    }
+    
+    STATE.bubbleActive = !STATE.bubbleActive;
+    
+    // Persist active state in localStorage settings
+    localStorage.setItem('verdi_settings', JSON.stringify(STATE));
+    
+    // Call the native plugin method to start/stop the service
+    await VerdiPlugin.toggleBubble({ active: STATE.bubbleActive });
+    
+    updateBubbleUI(STATE.bubbleActive);
+  } catch (err) {
+    console.error("Error toggling bubble service:", err);
+    // Mock simulation toggle in browser
+    STATE.bubbleActive = !STATE.bubbleActive;
+    updateBubbleUI(STATE.bubbleActive);
+  }
+}
+
 
 function updatePermissionUI(type, granted) {
   if (type === 'overlay') {
@@ -422,11 +573,19 @@ function setupNativeListeners() {
 
     // Listen for driver app foreground activity notifications
     VerdiPlugin.addListener('onAppConnected', (data) => {
+      const appName = data.appName || 'Ninguna';
+      updateAppConnectionUI(appName);
+      
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
       // Wait at least 6 seconds after a trip check before returning to graphite searching state
       if (timeSinceCapture > 6000) {
-        elements.liveStatusTitle.innerText = `Conectado a ${data.appName}`;
-        elements.liveStatusDesc.innerText = `Esperando viaje...`;
+        if (appName !== 'Ninguna' && appName !== 'Desconectado' && appName !== 'Verdi (Pruebas)') {
+          elements.liveStatusTitle.innerText = `Conectado a ${appName}`;
+          elements.liveStatusDesc.innerText = `Esperando viaje... Monitoreando pantalla de forma activa.`;
+        } else {
+          elements.liveStatusTitle.innerText = `Buscando Conexión...`;
+          elements.liveStatusDesc.innerText = `Esperando la apertura de Uber, DiDi o Cabify en primer plano.`;
+        }
         elements.liveTrafficLight.className = 'traffic-light-preview graphite';
         elements.liveMetricsContainer.style.display = 'none';
         elements.liveBubbleText.innerText = '🔘';
@@ -476,6 +635,9 @@ function initEvents() {
   elements.btnToggleOverlay.addEventListener('click', () => toggleAndroidPermission('overlay'));
   elements.btnToggleAccessibility.addEventListener('click', () => toggleAndroidPermission('accessibility'));
   
+  // Service Bubble Toggle
+  elements.btnToggleBubble.addEventListener('click', toggleBubbleService);
+  
   // Unit change updates
   elements.unitDistance.addEventListener('change', (e) => {
     STATE.distanceUnit = e.target.value;
@@ -499,6 +661,11 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSettings();
   setupNativeListeners();
   checkAndroidPermissions();
+  
+  // Auto-launch bubble service if active
+  if (STATE.bubbleActive) {
+    VerdiPlugin.toggleBubble({ active: true }).catch(err => console.warn("Failed starting service on load", err));
+  }
   
   // Refrescar permisos y conexión de apps periódicamente cada 2 segundos
   setInterval(checkAndroidPermissions, 2000);

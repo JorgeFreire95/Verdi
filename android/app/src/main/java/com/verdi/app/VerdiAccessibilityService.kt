@@ -13,6 +13,11 @@ import android.widget.Toast
 
 class VerdiAccessibilityService : AccessibilityService() {
 
+    companion object {
+        var isServiceRunning = false
+        var activeApp = "Ninguna"
+    }
+
     // Config cache in memory
     private var fuelPrice = 1200f
     private var vehicleEfficiency = 12f
@@ -57,6 +62,9 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        isServiceRunning = true
+        activeApp = "Ninguna"
+        VerdiPlugin.onAppConnected(activeApp)
         Toast.makeText(this, "Verdi: Servicio Conectado a Accesibilidad", Toast.LENGTH_SHORT).show()
     }
 
@@ -75,7 +83,27 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: ""
-        
+        val eventType = event.eventType
+
+        // 1. Detect dynamic app changes on window state updates
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val cleanName = when {
+                pkg.contains("uber", ignoreCase = true) -> "Uber"
+                pkg.contains("didi", ignoreCase = true) -> "DiDi"
+                pkg.contains("cabify", ignoreCase = true) -> "Cabify"
+                pkg.contains("verdi", ignoreCase = true) -> "Verdi (Pruebas)"
+                else -> "Ninguna"
+            }
+            if (cleanName != activeApp) {
+                activeApp = cleanName
+                if (cleanName != "Ninguna" && cleanName != "Verdi (Pruebas)") {
+                    val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+                    prefs.edit().putString("lastConnectedApp", cleanName).apply()
+                }
+                VerdiPlugin.onAppConnected(activeApp)
+            }
+        }
+
         // Diagnóstico: Mostrar Toast temporal con el nombre del paquete activo (excepto sistema y launcher)
         if (pkg.isNotBlank() && 
             !pkg.contains("android", ignoreCase = true) && 
@@ -98,6 +126,19 @@ class VerdiAccessibilityService : AccessibilityService() {
             pkg.contains("cabify", ignoreCase = true) ||
             pkg.contains("verdi", ignoreCase = true) // allow self-scanning for testing
         ) {
+            // Ensure activeApp matches this app if we missed the window state change
+            val cleanName = when {
+                pkg.contains("uber", ignoreCase = true) -> "Uber"
+                pkg.contains("didi", ignoreCase = true) -> "DiDi"
+                pkg.contains("cabify", ignoreCase = true) -> "Cabify"
+                pkg.contains("verdi", ignoreCase = true) -> "Verdi (Pruebas)"
+                else -> "Ninguna"
+            }
+            if (cleanName != activeApp) {
+                activeApp = cleanName
+                VerdiPlugin.onAppConnected(activeApp)
+            }
+
             notifyAppConnected(pkg)
 
             val rootNode = rootInActiveWindow ?: return
@@ -239,10 +280,17 @@ class VerdiAccessibilityService : AccessibilityService() {
         VerdiPlugin.onTripCaptured(price, distance, timeMins)
     }
 
-    override fun onInterrupt() {}
+    override fun onInterrupt() {
+        isServiceRunning = false
+        activeApp = "Ninguna"
+        VerdiPlugin.onAppConnected(activeApp)
+    }
 
     override fun onDestroy() {
         super.onDestroy()
+        isServiceRunning = false
+        activeApp = "Ninguna"
+        VerdiPlugin.onAppConnected(activeApp)
         unregisterReceiver(configReceiver)
     }
 }
