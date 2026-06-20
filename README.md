@@ -118,8 +118,8 @@ gantt
   * **Verde (Rentable):** Cumple con la meta de ganancia por distancia.
   * **Amarillo (Marginal):** Viaje aceptable que se encuentra cerca del límite mínimo de distancia.
   * **Rojo (Poco rentable / Pérdida):** No cumple la meta mínima de distancia o genera pérdida.
-* **📡 Indicador de Conexión de Aplicaciones (Novedad):** Muestra dinámicamente en el panel principal si el sistema está conectado a la aplicación de conductores (ej: **"Conectado a Cabify"**) y el estado de **"Esperando viaje..."** en color Grafito, de forma que el conductor sabe en tiempo real que el servicio de accesibilidad está listo y operando en la app correcta.
-* **💬 Burbuja Flotante Activa (Overlay):** Un widget interactivo que flota sobre las otras aplicaciones y cambia de color en menos de 500 ms al recibir un viaje. Se puede arrastrar y reposicionar libremente, recordando su ubicación preferida.
+* **📡 Monitoreo e Instalación de Apps de Conductor (Novedad):** Verifica si las aplicaciones oficiales de conductor (**Uber Driver**, **DiDi Conductor** y **Cabify Driver**) están instaladas en el dispositivo, informando su estado en tiempo real (**Instalada / En segundo plano**, **Activa / En primer plano** o **No detectada**).
+* **💬 Burbuja Flotante de Servicio (Control Directo):** Un widget interactivo que flota sobre las otras aplicaciones y cambia de color en menos de 500 ms al recibir un viaje. Se puede iniciar y detener directamente desde el panel principal con un botón interactivo y es libremente arrastrable.
 * **🌎 Soporte Regional Adaptable:** Admite múltiples monedas (CLP, USD, COP, MXN, EUR, etc.) y unidades regionales (KM/Millas, Litros/Galones, KM/L, MPG) sin alterar la lógica interna.
 
 ---
@@ -130,7 +130,7 @@ gantt
 * **JavaScript Moderno (ES6):** Reactividad en la UI del panel de control.
 * **Vite:** Motor de desarrollo y empaquetado para una carga ultrarrápida.
 * **Capacitor 6:** Framework de empaquetado e integración del plugin de puente nativo.
-* **Kotlin (1.9.22):** Lógica nativa de segundo plano y servicios Android.
+* **Kotlin (1.9.25):** Lógica nativa de segundo plano y servicios Android.
 * **Android Accessibility Services:** Captura en tiempo real de textos en pantalla.
 * **Android WindowManager Overlay:** Renderizado de UI flotante en el sistema.
 
