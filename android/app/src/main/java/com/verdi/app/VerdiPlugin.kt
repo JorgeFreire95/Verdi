@@ -1,10 +1,14 @@
 package com.verdi.app
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.text.TextUtils
+import android.util.Log
+import androidx.core.content.ContextCompat
+import androidx.core.app.ActivityCompat
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -13,6 +17,10 @@ import com.getcapacitor.annotation.CapacitorPlugin
 
 @CapacitorPlugin(name = "Verdi")
 class VerdiPlugin : Plugin() {
+
+    private val REQUEST_CODE_RUNTIME = 1501
+    private val TAG = "VerdiPlugin"
+
 
     companion object {
         private var instance: VerdiPlugin? = null
@@ -41,9 +49,17 @@ class VerdiPlugin : Plugin() {
 
     @PluginMethod
     override fun checkPermissions(call: PluginCall) {
+        Log.d(TAG, "checkPermissions called")
         val context = context
         val overlayGranted = Settings.canDrawOverlays(context)
         val accessibilityGranted = isAccessibilityServiceEnabled(context, VerdiAccessibilityService::class.java)
+
+        val fineLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val coarseLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val backgroundLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_BACKGROUND_LOCATION) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val bluetoothScan = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val bluetoothConnect = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        val bluetoothAdvertise = ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val lastConnectedApp = prefs.getString("lastConnectedApp", "")
@@ -55,10 +71,17 @@ class VerdiPlugin : Plugin() {
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
         ret.put("accessibility", accessibilityGranted)
+        ret.put("locationFine", fineLocation)
+        ret.put("locationCoarse", coarseLocation)
+        ret.put("locationBackground", backgroundLocation)
+        ret.put("bluetoothScan", bluetoothScan)
+        ret.put("bluetoothConnect", bluetoothConnect)
+        ret.put("bluetoothAdvertise", bluetoothAdvertise)
         ret.put("isServiceRunning", VerdiAccessibilityService.isServiceRunning)
         ret.put("activeApp", VerdiAccessibilityService.activeApp)
         ret.put("lastConnectedApp", lastConnectedApp)
         ret.put("uberInstalled", uberInstalled)
+        Log.d(TAG, "checkPermissions result=" + ret.toString())
         ret.put("didiInstalled", didiInstalled)
         ret.put("cabifyInstalled", cabifyInstalled)
         call.resolve(ret)
@@ -81,11 +104,49 @@ class VerdiPlugin : Plugin() {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+        } else if (type == "runtime" || type == "location" || type == "bluetooth") {
+            Log.d(TAG, "requestPermissions called type=$type")
+            // Request runtime permissions (location + bluetooth) from the activity if possible.
+            val perms = mutableListOf<String>()
+            perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
+            perms.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+            perms.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            perms.add(Manifest.permission.BLUETOOTH_SCAN)
+            perms.add(Manifest.permission.BLUETOOTH_CONNECT)
+            perms.add(Manifest.permission.BLUETOOTH_ADVERTISE)
+
+            val activity = bridge.activity
+            if (activity != null) {
+                try {
+                    Log.d(TAG, "Activity found for runtime permission request")
+                    ActivityCompat.requestPermissions(activity, perms.toTypedArray(), REQUEST_CODE_RUNTIME)
+                    val ret = JSObject()
+                    ret.put("status", "requested")
+                    call.resolve(ret)
+                    return
+                } catch (e: Exception) {
+                    Log.e(TAG, "requestPermissions failed, fallback to app settings", e)
+                }
+            } else {
+                Log.w(TAG, "requestPermissions no activity available, opening app settings")
+            }
+
+            // Fallback: open app settings so user can grant perms manually
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            intent.data = Uri.parse("package:${context.packageName}")
+            context.startActivity(intent)
+            val ret = JSObject()
+            ret.put("status", "opened_settings")
+            call.resolve(ret)
+            return
         }
         val ret = JSObject()
         ret.put("status", "requested")
         call.resolve(ret)
     }
+
+    
 
     @PluginMethod
     fun updateConfig(call: PluginCall) {

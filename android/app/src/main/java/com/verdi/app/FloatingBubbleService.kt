@@ -21,9 +21,14 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import android.util.Log
 import java.util.Locale
 
 class FloatingBubbleService : Service() {
+
+    companion object {
+        private const val TAG = "FloatingBubbleService"
+    }
 
     private lateinit var windowManager: WindowManager
     private lateinit var bubbleLayout: FrameLayout
@@ -53,6 +58,7 @@ class FloatingBubbleService : Service() {
                 val hourly = intent.getDoubleExtra("hourly", 0.0)
                 val cur = intent.getStringExtra("currency") ?: "$"
                 
+                Log.d(TAG, "Broadcast received - Decision: $decision, Price: $price, Net: $net")
                 updateBubbleState(decision, price, fuel, net, hourly, cur)
             }
         }
@@ -60,8 +66,14 @@ class FloatingBubbleService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand called - Service starting/restarting")
+        return START_STICKY
+    }
+
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate called - Creating FloatingBubbleService")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         
         // Register Broadcast Receiver for communication
@@ -71,13 +83,16 @@ class FloatingBubbleService : Service() {
         } else {
             registerReceiver(receiver, filter)
         }
+        Log.d(TAG, "Broadcast receiver registered for UPDATE_BUBBLE")
 
         // Start Foreground Service
         startServiceForeground()
         
         // Build views programmatically
+        Log.d(TAG, "Creating bubble views")
         createBubbleView()
         createPanelView()
+        Log.d(TAG, "FloatingBubbleService initialized successfully")
     }
 
     private fun startServiceForeground() {
@@ -106,58 +121,65 @@ class FloatingBubbleService : Service() {
     }
 
     private fun createBubbleView() {
-        // Root container for bubble
-        bubbleLayout = FrameLayout(this)
-        
-        // Preferred Position
-        val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
-        val savedX = prefs.getInt("bubble_x", 0)
-        val savedY = prefs.getInt("bubble_y", -100)
-
-        // Setup Window Manager Params
-        params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-            PixelFormat.TRANSLUCENT
-        ).apply {
-            gravity = Gravity.CENTER or Gravity.END
-            x = savedX
-            y = savedY
-        }
-
-        // Inside bubble (Circular design)
-        bubbleView = FrameLayout(this).apply {
-            val size = dpToPx(56)
-            layoutParams = FrameLayout.LayoutParams(size, size)
+        try {
+            Log.d(TAG, "createBubbleView: Starting bubble view creation")
+            // Root container for bubble
+            bubbleLayout = FrameLayout(this)
             
-            // Background ring with shadow
-            val shape = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(Color.parseColor(stateColor))
-                setStroke(dpToPx(3), Color.WHITE)
+            // Preferred Position
+            val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+            val savedX = prefs.getInt("bubble_x", 0)
+            val savedY = prefs.getInt("bubble_y", -100)
+            Log.d(TAG, "Saved bubble position - X: $savedX, Y: $savedY")
+
+            // Setup Window Manager Params
+            params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT
+            ).apply {
+                gravity = Gravity.CENTER or Gravity.END
+                x = savedX
+                y = savedY
             }
-            background = shape
+
+            // Inside bubble (Circular design)
+            bubbleView = FrameLayout(this).apply {
+                val size = dpToPx(56)
+                layoutParams = FrameLayout.LayoutParams(size, size)
+                
+                // Background ring with shadow
+                val shape = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor(stateColor))
+                    setStroke(dpToPx(3), Color.WHITE)
+                }
+                background = shape
+            }
+
+            // Indicator emoji
+            bubbleText = TextView(this).apply {
+                text = "🔘"
+                textSize = 24f
+                gravity = Gravity.CENTER
+                layoutParams = FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.MATCH_PARENT
+                )
+            }
+
+            (bubbleView as FrameLayout).addView(bubbleText)
+            bubbleLayout.addView(bubbleView)
+            windowManager.addView(bubbleLayout, params)
+            Log.d(TAG, "Bubble view added to window manager")
+
+            // Drag and drop gesture
+            setupDragAndDrop()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error creating bubble view", e)
         }
-
-        // Indicator emoji
-        bubbleText = TextView(this).apply {
-            text = "🔘"
-            textSize = 24f
-            gravity = Gravity.CENTER
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-        }
-
-        (bubbleView as FrameLayout).addView(bubbleText)
-        bubbleLayout.addView(bubbleView)
-        windowManager.addView(bubbleLayout, params)
-
-        // Drag and drop gesture
-        setupDragAndDrop()
     }
 
     private fun createPanelView() {
@@ -333,9 +355,28 @@ class FloatingBubbleService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        unregisterReceiver(receiver)
-        if (::bubbleLayout.isInitialized) windowManager.removeView(bubbleLayout)
-        if (::panelLayout.isInitialized) windowManager.removeView(panelLayout)
+        Log.d(TAG, "onDestroy called - Cleaning up FloatingBubbleService")
+        try {
+            unregisterReceiver(receiver)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error unregistering receiver", e)
+        }
+        if (::bubbleLayout.isInitialized) {
+            try {
+                windowManager.removeView(bubbleLayout)
+                Log.d(TAG, "Bubble layout removed")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error removing bubble layout", e)
+            }
+        }
+        if (::panelLayout.isInitialized) {
+            try {
+                windowManager.removeView(panelLayout)
+                Log.d(TAG, "Panel layout removed")
+            } catch (e: Exception) {
+                Log.w(TAG, "Error removing panel layout", e)
+            }
+        }
     }
 
     private fun dpToPx(dp: Int): Int {

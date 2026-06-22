@@ -10,12 +10,18 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.util.regex.Pattern
 import android.widget.Toast
+import android.util.Log
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import androidx.core.app.NotificationCompat
+import android.app.Notification
 
 class VerdiAccessibilityService : AccessibilityService() {
 
     companion object {
         var isServiceRunning = false
         var activeApp = "Ninguna"
+        private const val TAG = "VerdiAccessibilityService"
     }
 
     // Config cache in memory
@@ -33,6 +39,8 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     private var lastNotifiedPkg = ""
     private var lastNotifiedTime = 0L
+    private val NOTIF_CHANNEL_ID = "verdi_service_channel"
+    private val NOTIF_ID = 8421
 
     private val configReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -44,9 +52,11 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "onCreate called - Initializing VerdiAccessibilityService")
         Toast.makeText(this, "Verdi: Servicio Creado", Toast.LENGTH_SHORT).show()
         try {
             loadConfig()
+            Log.d(TAG, "Configuration loaded")
             
             // Register receiver for dynamic config updates
             val filter = IntentFilter("com.verdi.app.CONFIG_UPDATED")
@@ -56,7 +66,19 @@ class VerdiAccessibilityService : AccessibilityService() {
                 registerReceiver(configReceiver, filter)
             }
         } catch (e: Exception) {
+            Log.e(TAG, "Error initializing service", e)
             e.printStackTrace()
+        }
+        // Create notification channel for persistent service notification
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(NOTIF_CHANNEL_ID, "Verdi Service", NotificationManager.IMPORTANCE_LOW)
+                channel.description = "Notificaciones de estado del servicio Verdi"
+                nm.createNotificationChannel(channel)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed creating notification channel", e)
         }
     }
 
@@ -64,8 +86,22 @@ class VerdiAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         isServiceRunning = true
         activeApp = "Ninguna"
+        Log.d(TAG, "onServiceConnected - Service connected to accessibility")
         VerdiPlugin.onAppConnected(activeApp)
         Toast.makeText(this, "Verdi: Servicio Conectado a Accesibilidad", Toast.LENGTH_SHORT).show()
+        try {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val notif = NotificationCompat.Builder(this, NOTIF_CHANNEL_ID)
+                .setContentTitle("Verdi — Servicio Activo")
+                .setContentText("Lectura de pantalla activa")
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setOngoing(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+            startForeground(NOTIF_ID, notif)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not start foreground notification", e)
+        }
     }
 
     private fun loadConfig() {
@@ -84,6 +120,7 @@ class VerdiAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: ""
         val eventType = event.eventType
+        Log.d(TAG, "onAccessibilityEvent type=$eventType pkg=$pkg activeApp=$activeApp")
 
         // 1. Detect dynamic app changes on window state updates
         if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
@@ -95,6 +132,7 @@ class VerdiAccessibilityService : AccessibilityService() {
                 else -> "Ninguna"
             }
             if (cleanName != activeApp) {
+                Log.d(TAG, "App change detected from $activeApp to $cleanName")
                 activeApp = cleanName
                 if (cleanName != "Ninguna" && cleanName != "Verdi (Pruebas)") {
                     val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
@@ -126,6 +164,7 @@ class VerdiAccessibilityService : AccessibilityService() {
             pkg.contains("cabify", ignoreCase = true) ||
             pkg.contains("verdi", ignoreCase = true) // allow self-scanning for testing
         ) {
+            Log.d(TAG, "Scanning active app package $pkg")
             // Ensure activeApp matches this app if we missed the window state change
             val cleanName = when {
                 pkg.contains("uber", ignoreCase = true) -> "Uber"
@@ -141,11 +180,16 @@ class VerdiAccessibilityService : AccessibilityService() {
 
             notifyAppConnected(pkg)
 
-            val rootNode = rootInActiveWindow ?: return
+            val rootNode = rootInActiveWindow
+            if (rootNode == null) {
+                Log.w(TAG, "rootInActiveWindow is null for pkg=$pkg")
+                return
+            }
             
             // Collect all visible text nodes
             val texts = ArrayList<String>()
             findTextNodes(rootNode, texts)
+            Log.d(TAG, "Collected ${texts.size} text nodes for pkg=$pkg")
             
             // Parse for travel metrics
             parseAndEvaluateScreenTexts(texts)
@@ -192,7 +236,37 @@ class VerdiAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun parseFlexibleNumber(raw: String): Double? {
+        var t = raw.replace(Regex("[^0-9.,]"), "")
+        if (t.isBlank()) return null
+
+        val commaCount = t.count { it == ',' }
+        val dotCount = t.count { it == '.' }
+
+        if (commaCount > 0 && dotCount > 0) {
+            if (t.lastIndexOf(',') > t.lastIndexOf('.')) {
+                t = t.replace(".", "")
+                t = t.replace(",", ".")
+            } else {
+                t = t.replace(",", "")
+            }
+        } else if (commaCount > 0) {
+            if (commaCount == 1 && t.substringAfter(',').length <= 2) {
+                t = t.replace(",", ".")
+            } else {
+                t = t.replace(",", "")
+            }
+        } else {
+            if (dotCount > 1) {
+                t = t.replace(".", "")
+            }
+        }
+
+        return t.toDoubleOrNull()
+    }
+
     private fun parseAndEvaluateScreenTexts(texts: List<String>) {
+        Log.d(TAG, "parseAndEvaluateScreenTexts called with ${texts.size} texts")
         var detectedPrice: Double? = null
         var detectedDistance: Double? = null
         var detectedTimeMins: Double? = null
@@ -206,9 +280,11 @@ class VerdiAccessibilityService : AccessibilityService() {
             // Price Match
             val priceMatcher = pricePattern.matcher(text)
             if (priceMatcher.find()) {
-                val valStr = priceMatcher.group(1)?.replace(".", "")?.replace(",", "")
-                valStr?.toDoubleOrNull()?.let {
+                val raw = priceMatcher.group(1) ?: ""
+                val parsed = parseFlexibleNumber(raw)
+                parsed?.let {
                     detectedPrice = it
+                    Log.d(TAG, "Detected price text='$text' -> $detectedPrice")
                 }
             }
             
@@ -218,6 +294,7 @@ class VerdiAccessibilityService : AccessibilityService() {
                 val valStr = distMatcher.group(1)?.replace(",", ".")
                 valStr?.toDoubleOrNull()?.let {
                     detectedDistance = it
+                    Log.d(TAG, "Detected distance text='$text' -> $detectedDistance")
                 }
             }
 
@@ -227,14 +304,19 @@ class VerdiAccessibilityService : AccessibilityService() {
                 val valStr = timeMatcher.group(1)
                 valStr?.toDoubleOrNull()?.let {
                     detectedTimeMins = it
+                    Log.d(TAG, "Detected time text='$text' -> $detectedTimeMins")
                 }
             }
         }
 
         // If we found a candidate trip (needs at least price & distance to evaluate)
         if (detectedPrice != null && detectedDistance != null) {
+            Log.d(TAG, "Candidate trip found price=$detectedPrice distance=$detectedDistance time=$detectedTimeMins")
             val now = System.currentTimeMillis()
-            if (now - lastCapturedTime < captureCooldown) return
+            if (now - lastCapturedTime < captureCooldown) {
+                Log.d(TAG, "Skipping duplicate capture due cooldown")
+                return
+            }
             lastCapturedTime = now
 
             val finalTimeMins = detectedTimeMins ?: 15.0 // fallback if time text parsing failed
@@ -243,6 +325,8 @@ class VerdiAccessibilityService : AccessibilityService() {
     }
 
     private fun runProfitabilityCalculation(price: Double, distance: Double, timeMins: Double) {
+        Log.d(TAG, "runProfitabilityCalculation - Price: $price, Distance: $distance, Time: $timeMins")
+        
         // Calculation
         val fuelUsed = distance / vehicleEfficiency.toDouble()
 
@@ -265,6 +349,8 @@ class VerdiAccessibilityService : AccessibilityService() {
             }
         }
 
+        Log.d(TAG, "Decision: $decision - Net: $netProfit, Hourly: $hourlyRate")
+
         // Send local Broadcast to FloatingBubbleService
         val bubbleIntent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
             putExtra("decision", decision)
@@ -275,6 +361,7 @@ class VerdiAccessibilityService : AccessibilityService() {
             putExtra("currency", currency)
         }
         sendBroadcast(bubbleIntent)
+        Log.d(TAG, "Broadcast sent to FloatingBubbleService")
 
         // Push to Web client via VerdiPlugin
         VerdiPlugin.onTripCaptured(price, distance, timeMins)
@@ -291,6 +378,15 @@ class VerdiAccessibilityService : AccessibilityService() {
         isServiceRunning = false
         activeApp = "Ninguna"
         VerdiPlugin.onAppConnected(activeApp)
-        unregisterReceiver(configReceiver)
+        try {
+            stopForeground(true)
+        } catch (e: Exception) {
+            Log.w(TAG, "stopForeground failed", e)
+        }
+        try {
+            unregisterReceiver(configReceiver)
+        } catch (e: Exception) {
+            Log.w(TAG, "unregisterReceiver failed", e)
+        }
     }
 }

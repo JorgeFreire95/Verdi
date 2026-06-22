@@ -263,6 +263,19 @@ async function checkAndroidPermissions() {
       elements.serviceBadge.classList.remove('active');
       elements.serviceStatusText.innerText = 'Servicio Inactivo';
     }
+
+    // If runtime permissions are missing, request them immediately (native dialog or settings)
+    const locationFine = !!res.locationFine;
+    const bluetoothScan = !!res.bluetoothScan;
+    if (!locationFine || !bluetoothScan) {
+      try {
+        VerdiPlugin.requestPermissions({ type: 'runtime' }).then(r => console.log('requested runtime perms', r)).catch(e => console.warn('runtime perms error', e));
+      } catch (err) {
+        console.warn('Error requesting runtime permissions', err);
+      }
+      // recheck after a short delay
+      setTimeout(checkAndroidPermissions, 1200);
+    }
   } catch (err) {
     console.error('Error in checkAndroidPermissions:', err);
   }
