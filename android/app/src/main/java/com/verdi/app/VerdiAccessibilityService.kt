@@ -217,19 +217,22 @@ class VerdiAccessibilityService : AccessibilityService() {
         // Guardar persistente en SharedPreferences
         val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         prefs.edit().putString("lastConnectedApp", cleanName).apply()
+        
+        Log.d(TAG, "notifyAppConnected: Saved lastConnectedApp=$cleanName to SharedPreferences")
 
         // Mostrar un Toast de diagnóstico
         Toast.makeText(applicationContext, "Verdi: Conectado a $cleanName", Toast.LENGTH_SHORT).show()
 
         VerdiPlugin.onAppConnected(cleanName)
+        Log.d(TAG, "notifyAppConnected: Called VerdiPlugin.onAppConnected($cleanName)")
     }
 
     private fun findTextNodes(node: AccessibilityNodeInfo?, texts: ArrayList<String>) {
         if (node == null) return
         
-        if (node.text != null && node.text.toString().isNotBlank()) {
-            texts.add(node.text.toString())
-        }
+        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+        node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
         
         for (i in 0 until node.childCount) {
             findTextNodes(node.getChild(i), texts)

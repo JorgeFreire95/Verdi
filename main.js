@@ -204,6 +204,15 @@ async function checkAndroidPermissions() {
   try {
     console.log("checkAndroidPermissions started");
     const res = await VerdiPlugin.checkPermissions();
+    console.log("=== VERDI DEBUG ===");
+    console.log("activeApp:", res.activeApp);
+    console.log("lastConnectedApp:", res.lastConnectedApp);
+    console.log("isServiceRunning:", res.isServiceRunning);
+    console.log("cabifyInstalled:", res.cabifyInstalled);
+    console.log("accessibility:", res.accessibility);
+    console.log("overlay:", res.overlay);
+    console.log("Full result:", res);
+    console.log("=== END DEBUG ===");
     console.log("checkAndroidPermissions result:", res);
     
     updatePermissionUI('overlay', res.overlay);
@@ -222,12 +231,13 @@ async function checkAndroidPermissions() {
     }
     updateBubbleUI(STATE.bubbleActive);
 
+    // Always refresh app connection UI from native state, even if bubble is not active
+    updateAppConnectionUI(res.activeApp || 'Ninguna');
+
     // Check if the accessibility service is running in background
     const isServiceActive = res.isServiceRunning || (res.accessibility && res.overlay);
 
     if (isServiceActive) {
-      updateAppConnectionUI(res.activeApp || 'Ninguna');
-      
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
       if (timeSinceCapture > 6000) {
         const currentApp = res.activeApp;
@@ -243,8 +253,6 @@ async function checkAndroidPermissions() {
         elements.liveBubbleText.innerText = '🔘';
       }
     } else {
-      updateAppConnectionUI('Ninguna');
-      
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
       if (timeSinceCapture > 6000) {
         elements.liveStatusTitle.innerText = `Servicio Inactivo`;

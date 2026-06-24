@@ -4,9 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
+import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import androidx.core.app.ActivityCompat
 import com.getcapacitor.JSObject
@@ -47,10 +49,10 @@ class VerdiPlugin : Plugin() {
         instance = this
     }
 
+    @RequiresApi(Build.VERSION_CODES.M)
     @PluginMethod
     override fun checkPermissions(call: PluginCall) {
         Log.d(TAG, "checkPermissions called")
-        val context = context
         val overlayGranted = Settings.canDrawOverlays(context)
         val accessibilityGranted = isAccessibilityServiceEnabled(context, VerdiAccessibilityService::class.java)
 
@@ -63,10 +65,17 @@ class VerdiPlugin : Plugin() {
 
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val lastConnectedApp = prefs.getString("lastConnectedApp", "")
+        val currentActiveApp = if (!VerdiAccessibilityService.activeApp.isNullOrBlank() && VerdiAccessibilityService.activeApp != "Ninguna") {
+            VerdiAccessibilityService.activeApp
+        } else {
+            lastConnectedApp.orEmpty()
+        }
 
         val uberInstalled = isAppInstalled(context, "com.ubercab.driver")
         val didiInstalled = isAppInstalled(context, "com.didichuxing.driver") || isAppInstalled(context, "com.didiglobal.driver")
         val cabifyInstalled = isAppInstalled(context, "com.cabify.driver")
+
+        Log.d(TAG, "DEBUG checkPermissions: VerdiAccessibilityService.activeApp=${VerdiAccessibilityService.activeApp} lastConnectedApp=$lastConnectedApp currentActiveApp=$currentActiveApp")
 
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
@@ -78,19 +87,19 @@ class VerdiPlugin : Plugin() {
         ret.put("bluetoothConnect", bluetoothConnect)
         ret.put("bluetoothAdvertise", bluetoothAdvertise)
         ret.put("isServiceRunning", VerdiAccessibilityService.isServiceRunning)
-        ret.put("activeApp", VerdiAccessibilityService.activeApp)
+        ret.put("activeApp", currentActiveApp)
         ret.put("lastConnectedApp", lastConnectedApp)
         ret.put("uberInstalled", uberInstalled)
-        Log.d(TAG, "checkPermissions result=" + ret.toString())
         ret.put("didiInstalled", didiInstalled)
         ret.put("cabifyInstalled", cabifyInstalled)
+        Log.d(TAG, "checkPermissions result=" + ret.toString())
         call.resolve(ret)
     }
 
+    @RequiresApi(Build.VERSION_CODES.M)
     @PluginMethod
     override fun requestPermissions(call: PluginCall) {
         val type = call.getString("type", "")
-        val context = context
         if (type == "overlay") {
             if (!Settings.canDrawOverlays(context)) {
                 val intent = Intent(
@@ -176,7 +185,6 @@ class VerdiPlugin : Plugin() {
     @PluginMethod
     fun toggleBubble(call: PluginCall) {
         val active = call.getBoolean("active", false) ?: false
-        val context = context
         val intent = Intent(context, FloatingBubbleService::class.java)
         if (active) {
             context.startService(intent)
