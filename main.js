@@ -292,54 +292,58 @@ async function checkAndroidPermissions() {
 // Update connection status list items in dashboard
 function updateAppConnectionUI(activeApp) {
   try {
-    if (!elements.appUber) return; // safety check
-    
-    // 1. Update installation badges in UI
+    // Use direct DOM queries every time to avoid stale cache issues
+    const appUber    = document.getElementById('status-app-uber');
+    const appDiDi    = document.getElementById('status-app-didi');
+    const appCabify  = document.getElementById('status-app-cabify');
+    const textUber   = document.getElementById('status-text-uber');
+    const textDiDi   = document.getElementById('status-text-didi');
+    const textCabify = document.getElementById('status-text-cabify');
+    const installUber   = document.getElementById('install-badge-uber');
+    const installDiDi   = document.getElementById('install-badge-didi');
+    const installCabify = document.getElementById('install-badge-cabify');
+
+    console.log('[Verdi] updateAppConnectionUI activeApp=' + activeApp +
+      ' appUber=' + !!appUber + ' textCabify=' + !!textCabify);
+
+    if (!appUber) return;
+
     const inst = STATE.installations || { uber: false, didi: false, cabify: false };
-    
-    const updateBadge = (badgeEl, installed) => {
-      if (!badgeEl) return;
-      if (installed) {
-        badgeEl.innerText = "Instalada";
-        badgeEl.className = "app-install-badge installed";
-      } else {
-        badgeEl.innerText = "No detectada";
-        badgeEl.className = "app-install-badge not-installed";
-      }
+
+    // If the active app is a rideshare app, it must be installed
+    if (activeApp === 'Uber')   inst.uber   = true;
+    if (activeApp === 'DiDi')   inst.didi   = true;
+    if (activeApp === 'Cabify') inst.cabify = true;
+
+    const setbadge = (el, installed) => {
+      if (!el) return;
+      el.innerText   = installed ? 'Instalada' : 'No detectada';
+      el.className   = 'app-install-badge ' + (installed ? 'installed' : 'not-installed');
     };
+    setbadge(installUber,   inst.uber);
+    setbadge(installDiDi,   inst.didi);
+    setbadge(installCabify, inst.cabify);
 
-    updateBadge(elements.installUber, inst.uber);
-    updateBadge(elements.installDiDi, inst.didi);
-    updateBadge(elements.installCabify, inst.cabify);
+    // Reset active states
+    [appUber, appDiDi, appCabify].forEach(el => el && el.classList.remove('active', 'uber', 'didi', 'cabify'));
 
-    // 2. Clean classes and texts for connection states
-    elements.appUber.classList.remove('active');
-    elements.appUber.classList.remove('uber');
-    elements.appDiDi.classList.remove('active');
-    elements.appDiDi.classList.remove('didi');
-    elements.appCabify.classList.remove('active');
-    elements.appCabify.classList.remove('cabify');
-    
-    elements.textUber.innerText = inst.uber ? 'Segundo plano' : 'No detectada';
-    elements.textDiDi.innerText = inst.didi ? 'Segundo plano' : 'No detectada';
-    elements.textCabify.innerText = inst.cabify ? 'Segundo plano' : 'No detectada';
+    if (textUber)   textUber.innerText   = inst.uber   ? 'Segundo plano' : 'No detectada';
+    if (textDiDi)   textDiDi.innerText   = inst.didi   ? 'Segundo plano' : 'No detectada';
+    if (textCabify) textCabify.innerText = inst.cabify ? 'Segundo plano' : 'No detectada';
 
-    // 3. Highlight active foreground app
-    if (activeApp === 'Uber') {
-      elements.appUber.classList.add('active');
-      elements.appUber.classList.add('uber');
-      elements.textUber.innerText = 'Activo';
-    } else if (activeApp === 'DiDi') {
-      elements.appDiDi.classList.add('active');
-      elements.appDiDi.classList.add('didi');
-      elements.textDiDi.innerText = 'Activo';
-    } else if (activeApp === 'Cabify') {
-      elements.appCabify.classList.add('active');
-      elements.appCabify.classList.add('cabify');
-      elements.textCabify.innerText = 'Activo';
+    // Highlight the active foreground app
+    if (activeApp === 'Uber' && appUber && textUber) {
+      appUber.classList.add('active', 'uber');
+      textUber.innerText = 'Activo';
+    } else if (activeApp === 'DiDi' && appDiDi && textDiDi) {
+      appDiDi.classList.add('active', 'didi');
+      textDiDi.innerText = 'Activo';
+    } else if (activeApp === 'Cabify' && appCabify && textCabify) {
+      appCabify.classList.add('active', 'cabify');
+      textCabify.innerText = 'Activo';
     }
   } catch (e) {
-    console.error("Error in updateAppConnectionUI:", e);
+    console.error('[Verdi] Error in updateAppConnectionUI:', e);
   }
 }
 
@@ -595,6 +599,8 @@ function setupNativeListeners() {
     // Listen for driver app foreground activity notifications
     VerdiPlugin.addListener('onAppConnected', (data) => {
       const appName = data.appName || 'Ninguna';
+      // Ignore self-scan events to preserve last known driver app state in UI
+      if (appName === 'Verdi (Pruebas)') return;
       updateAppConnectionUI(appName);
       
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);

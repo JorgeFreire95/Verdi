@@ -88,14 +88,15 @@ gantt
     title Plan de Sprints - Verdi App
     dateFormat  YYYY-MM-DD
     section Sprint 1: UI / Presentación
-    Diseño CSS Glassmorphism y HTML5    :active, s1, 2026-06-01, 7d
-    Lógica del Historial & JS Math      :active, s2, after s1, 7d
+    Diseño CSS Glassmorphism y HTML5    :done, s1, 2026-06-01, 7d
+    Lógica del Historial & JS Math      :done, s2, after s1, 7d
     section Sprint 2: Lógica & Datos
-    Bridge Capacitor & SharedPreferences :s3, 2026-06-15, 6d
-    Foreground Service & Bubble Overlay  :s4, after s3, 8d
+    Bridge Capacitor & SharedPreferences :done, s3, 2026-06-15, 6d
+    Foreground Service & Bubble Overlay  :done, s4, after s3, 8d
     section Sprint 3: Integración Reactiva
-    Accessibility Service & Regex Parser :s5, 2026-06-29, 9d
-    Pruebas e Integración de < 500ms     :s6, after s5, 5d
+    Accessibility Service & Regex Parser :active, s5, 2026-06-24, 7d
+    Fix detección Cabify Driver          :active, s6, 2026-06-24, 3d
+    Pruebas e Integración de < 500ms     :s7, after s5, 5d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -104,9 +105,10 @@ gantt
 * **Sprint 2: Lógica de Interfaz y Datos Locales (Duración: 2 Semanas)**
   * **Sprint Goal:** Establecer la persistencia de datos nativa y la interfaz flotante sobre otras apps.
   * **Entregable:** Aplicación empaquetada que inicia el Foreground Service y persiste los parámetros en SharedPreferences.
-* **Sprint 3: Captura de Datos Reactiva en Tiempo Real (Duración: 2 Semanas)**
+* **Sprint 3: Captura de Datos Reactiva en Tiempo Real (Duración: 2 Semanas) — 🔄 En Progreso**
   * **Sprint Goal:** Ligar la lectura automática de pantalla con los cálculos nativos en tiempo real y mostrar el estado de conexión a las apps.
   * **Entregable:** APK final de Verdi con el servicio de accesibilidad leyendo ofertas en Uber/DiDi/Cabify, actualizando el semáforo e indicando a qué app se encuentra conectado.
+  * **Estado actual:** Servicio de accesibilidad operativo. Fix aplicado para detección de Cabify Driver en el Dashboard.
 
 ---
 
@@ -140,7 +142,11 @@ gantt
 
 ### Requisitos Previos
 * **Node.js** (v18 o superior) instalado.
-* **Android Studio** instalado con el SDK de Android (API 34 recomendada) y JDK 17 o 21 configurado.
+* **Android Studio** instalado con el SDK de Android (API 34 recomendada).
+* **JDK** — Se recomienda [Eclipse Adoptium Temurin 17+](https://adoptium.net/). Si `JAVA_HOME` apunta a una ruta inválida, corregir antes de compilar:
+  ```powershell
+  $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot"
+  ```
 * Un teléfono físico Android con depuración USB activa (para probar la burbuja y accesibilidad) o un emulador.
 
 ### Paso 1: Instalar dependencias e iniciar el servidor de desarrollo
@@ -154,21 +160,26 @@ gantt
    ```
 
 ### Paso 2: Compilar y sincronizar con Android
+> ⚠️ **Orden importante:** Siempre ejecutar `npm run build` **antes** de `npx cap sync android`. El sync copia el contenido de `dist/` al proyecto Android; si se hace al revés se empaqueta el bundle anterior.
+
 1. Construye el bundle de producción web:
    ```bash
    npm run build
    ```
 2. Sincroniza con Android:
    ```bash
-   npx cap sync
+   npx cap sync android
    ```
 
 ### Paso 3: Compilar y Lanzar la App
-1. Para compilar desde consola en Windows:
+1. Para compilar desde consola en Windows (corregir `JAVA_HOME` si es necesario):
    ```powershell
-   .\gradlew.bat assembleDebug
+   $env:JAVA_HOME = "C:\Program Files\Eclipse Adoptium\jdk-25.0.3.9-hotspot"
+   cd android
+   .\gradlew assembleDebug
    ```
-2. O abre el proyecto en Android Studio:
+   El APK resultante queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
+2. O abre el proyecto en Android Studio y haz clic en **Run app**:
    ```bash
    npx cap open android
    ```
@@ -178,5 +189,24 @@ gantt
 1. Abre la app **Verdi** instalada.
 2. En la pestaña **Panel**, otorga el permiso de **Burbuja Flotante** (Permitir mostrar sobre otras aplicaciones).
 3. Otorga el permiso de **Lectura de Pantalla** (se abrirán los Ajustes de Accesibilidad de tu teléfono. Busca "Verdi", **desactívalo y vuélvelo a activar** para asegurar que el sistema Android lo inicialice correctamente).
-4. Abre Uber, DiDi o Cabify. La burbuja pasará a color Grafito (`🔘`) esperando ofertas. Al recibir un viaje, se iluminará con el color del semáforo correspondiente y te mostrará el análisis completo de rentabilidad.
+4. Pulsa **Iniciar** en la tarjeta *Burbuja de Servicio* del Panel.
+5. Abre Uber, DiDi o Cabify. El Dashboard de Verdi mostrará la app como **Activo** y la burbuja pasará a color Grafito (`🔘`) esperando ofertas. Al recibir un viaje, se iluminará con el color del semáforo correspondiente y mostrará el análisis de rentabilidad.
+
+### Depuración con Logcat
+Para ver logs de Verdi en tiempo real (requiere USB Debugging activo):
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
+& $adb logcat | Select-String "Verdi"
+```
+
+---
+
+## 🐛 Problemas Conocidos y Fixes Aplicados
+
+| # | Problema | Fix | Estado |
+|---|----------|-----|--------|
+| 1 | El Dashboard mostraba Cabify como "Inactivo" al volver a Verdi desde Cabify Driver | `VerdiPlugin.kt`: `currentActiveApp` excluye `"Verdi (Pruebas)"`, retorna `lastConnectedApp` en su lugar | ✅ Resuelto |
+| 2 | El listener `onAppConnected` limpiaba el estado de conexión al activarse Verdi en primer plano | `main.js`: ignorar eventos con `appName === 'Verdi (Pruebas)'` | ✅ Resuelto |
+| 3 | `updateAppConnectionUI` fallaba silenciosamente por elementos cacheados null | `main.js`: reescrita con `document.getElementById` directo y null-safety completa | ✅ Resuelto |
+| 4 | Build desactualizado si se ejecutaba `npx cap sync android` antes de `npm run build` | Documentado el orden correcto del proceso de build | ✅ Documentado |
 

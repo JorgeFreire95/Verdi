@@ -65,7 +65,9 @@ class VerdiPlugin : Plugin() {
 
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val lastConnectedApp = prefs.getString("lastConnectedApp", "")
-        val currentActiveApp = if (!VerdiAccessibilityService.activeApp.isNullOrBlank() && VerdiAccessibilityService.activeApp != "Ninguna") {
+        val currentActiveApp = if (!VerdiAccessibilityService.activeApp.isNullOrBlank() &&
+            VerdiAccessibilityService.activeApp != "Ninguna" &&
+            VerdiAccessibilityService.activeApp != "Verdi (Pruebas)") {
             VerdiAccessibilityService.activeApp
         } else {
             lastConnectedApp.orEmpty()
