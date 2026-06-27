@@ -217,6 +217,14 @@ async function checkAndroidPermissions() {
     
     updatePermissionUI('overlay', res.overlay);
     updatePermissionUI('accessibility', res.accessibility);
+
+    // Update diagnostic line
+    const diagService = document.getElementById('diag-service');
+    const diagActive  = document.getElementById('diag-active');
+    const diagLast    = document.getElementById('diag-last');
+    if (diagService) diagService.innerText = res.isServiceRunning ? '✅ activo' : '❌ inactivo';
+    if (diagActive)  diagActive.innerText  = res.activeApp        || '—';
+    if (diagLast)    diagLast.innerText    = res.lastConnectedApp  || '—';
     
     // Save installation states locally in the state object
     STATE.installations = {
@@ -284,6 +292,8 @@ async function checkAndroidPermissions() {
       // recheck after a short delay
       setTimeout(checkAndroidPermissions, 1200);
     }
+
+    // If usage stats permission is missing the card shows "Otorgar" — user taps it manually.
   } catch (err) {
     console.error('Error in checkAndroidPermissions:', err);
   }
@@ -415,6 +425,22 @@ function updatePermissionUI(type, granted) {
       desc.innerText = 'Requiere servicio accesibilidad';
       btn.innerText = 'Otorgar';
     }
+  } else if (type === 'usageStats') {
+    const card = elements.cardUsageStats;
+    const desc = elements.statusUsageStatsDesc;
+    const btn = elements.btnToggleUsageStats;
+    if (!card) return;
+    if (granted) {
+      card.classList.add('active');
+      desc.innerText = 'Detección de App Activa';
+      btn.innerText = 'Activo';
+      btn.disabled = true;
+    } else {
+      card.classList.remove('active');
+      desc.innerText = 'Otorga acceso para detectar Cabify';
+      btn.innerText = 'Otorgar';
+      btn.disabled = false;
+    }
   }
 }
 
@@ -427,6 +453,8 @@ async function toggleAndroidPermission(type) {
     } else if (type === 'accessibility') {
       const active = !document.getElementById('card-accessibility').classList.contains('active');
       await VerdiPlugin.requestPermissions({ type: 'accessibility', value: active });
+    } else if (type === 'usageStats') {
+      await VerdiPlugin.requestPermissions({ type: 'usageStats' });
     }
     // Recheck state after requesting
     setTimeout(checkAndroidPermissions, 1000);

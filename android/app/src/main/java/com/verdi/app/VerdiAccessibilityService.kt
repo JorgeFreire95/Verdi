@@ -1,13 +1,17 @@
 package com.verdi.app
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import java.util.regex.Pattern
 import android.widget.Toast
 import android.util.Log
@@ -20,7 +24,7 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     companion object {
         var isServiceRunning = false
-        var activeApp = "Ninguna"
+        @Volatile var activeApp = "Ninguna"
         private const val TAG = "VerdiAccessibilityService"
     }
 
@@ -40,6 +44,30 @@ class VerdiAccessibilityService : AccessibilityService() {
     private var lastNotifiedPkg = ""
     private var lastNotifiedTime = 0L
     private val NOTIF_CHANNEL_ID = "verdi_service_channel"
+
+    // ── Polling fallback: checks foreground app every 1 second via rootInActiveWindow ──
+    private val pollHandler = Handler(Looper.getMainLooper())
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            try {
+                val root = rootInActiveWindow
+                if (root != null) {
+                    val pkg = root.packageName?.toString()
+                    root.recycle()
+                    if (!pkg.isNullOrBlank()) {
+                        val cleanName = pkgToAppName(pkg)
+                        if (cleanName != null && cleanName != activeApp) {
+                            Log.d(TAG, "Poll detected app change: $activeApp -> $cleanName (pkg=$pkg)")
+                            commitActiveApp(cleanName)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Poll error", e)
+            }
+            pollHandler.postDelayed(this, 1000)
+        }
+    }
     private val NOTIF_ID = 8421
 
     private val configReceiver = object : BroadcastReceiver() {
@@ -87,7 +115,25 @@ class VerdiAccessibilityService : AccessibilityService() {
         isServiceRunning = true
         activeApp = "Ninguna"
         Log.d(TAG, "onServiceConnected - Service connected to accessibility")
+
+        // Programmatically configure the service to receive ALL window events.
+        // This is more reliable than the XML config on some OEM devices (OPPO/ColorOS).
+        try {
+            val info = serviceInfo ?: AccessibilityServiceInfo()
+            info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK
+            info.feedbackType = AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+            info.flags = (AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
+                or AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
+                or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS)
+            info.notificationTimeout = 100
+            serviceInfo = info
+            Log.d(TAG, "AccessibilityServiceInfo configured programmatically")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set serviceInfo programmatically", e)
+        }
+
         VerdiPlugin.onAppConnected(activeApp)
+        pollHandler.postDelayed(pollRunnable, 1000)
         Toast.makeText(this, "Verdi: Servicio Conectado a Accesibilidad", Toast.LENGTH_SHORT).show()
         try {
             val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -122,31 +168,34 @@ class VerdiAccessibilityService : AccessibilityService() {
         val eventType = event.eventType
         Log.d(TAG, "onAccessibilityEvent type=$eventType pkg=$pkg activeApp=$activeApp")
 
-        // 1. Detect dynamic app changes on window state updates
+        // ── Detection Method 1: TYPE_WINDOWS_CHANGED (most reliable on Android 9+ / OPPO) ──
+        // Fires whenever any window appears/disappears. We inspect the windows list to find
+        // the topmost application window — this does NOT depend on the event's packageName.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P &&
+            eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            detectForegroundAppFromWindowsList()
+        }
+
+        // ── Detection Method 2: TYPE_WINDOW_STATE_CHANGED ──
+        // Classic method: only update for known rideshare apps or the launcher.
+        // System/unknown packages return null so we don't accidentally reset state.
         if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            val cleanName = when {
-                pkg.contains("uber", ignoreCase = true) -> "Uber"
-                pkg.contains("didi", ignoreCase = true) -> "DiDi"
-                pkg.contains("cabify", ignoreCase = true) -> "Cabify"
-                pkg.contains("verdi", ignoreCase = true) -> "Verdi (Pruebas)"
-                else -> "Ninguna"
+            val cleanName = pkgToAppName(pkg)
+            if (cleanName != null && cleanName != activeApp) {
+                Log.d(TAG, "App change via WINDOW_STATE_CHANGED: $activeApp -> $cleanName")
+                commitActiveApp(cleanName)
             }
-            if (cleanName != activeApp) {
-                Log.d(TAG, "App change detected from $activeApp to $cleanName")
-                activeApp = cleanName
-                if (cleanName != "Ninguna" && cleanName != "Verdi (Pruebas)") {
-                    val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
-                    prefs.edit().putString("lastConnectedApp", cleanName).apply()
-                }
-                VerdiPlugin.onAppConnected(activeApp)
+            // Extra: verify via rootInActiveWindow in case the event pkg is a system shell
+            if (cleanName == null) {
+                detectForegroundAppFromRoot()
             }
         }
 
-        // Diagnóstico: Mostrar Toast temporal con el nombre del paquete activo (excepto sistema y launcher)
-        if (pkg.isNotBlank() && 
-            !pkg.contains("android", ignoreCase = true) && 
-            !pkg.contains("systemui", ignoreCase = true) && 
-            !pkg.contains("launcher", ignoreCase = true) && 
+        // ── Diagnostic Toast (non-rideshare, non-system) ──
+        if (pkg.isNotBlank() &&
+            !pkg.contains("android", ignoreCase = true) &&
+            !pkg.contains("systemui", ignoreCase = true) &&
+            !pkg.contains("launcher", ignoreCase = true) &&
             !pkg.contains("verdi", ignoreCase = true)
         ) {
             val now = System.currentTimeMillis()
@@ -157,25 +206,16 @@ class VerdiAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Scan ride-sharing packages: Uber, DiDi, Cabify
-        // For general development / debugging, scan any active screen that changes
-        if (pkg.contains("uber", ignoreCase = true) || 
-            pkg.contains("didi", ignoreCase = true) || 
+        // ── Content scan for rideshare apps ──
+        if (pkg.contains("uber", ignoreCase = true) ||
+            pkg.contains("didi", ignoreCase = true) ||
             pkg.contains("cabify", ignoreCase = true) ||
-            pkg.contains("verdi", ignoreCase = true) // allow self-scanning for testing
+            pkg.contains("verdi", ignoreCase = true)
         ) {
             Log.d(TAG, "Scanning active app package $pkg")
-            // Ensure activeApp matches this app if we missed the window state change
-            val cleanName = when {
-                pkg.contains("uber", ignoreCase = true) -> "Uber"
-                pkg.contains("didi", ignoreCase = true) -> "DiDi"
-                pkg.contains("cabify", ignoreCase = true) -> "Cabify"
-                pkg.contains("verdi", ignoreCase = true) -> "Verdi (Pruebas)"
-                else -> "Ninguna"
-            }
-            if (cleanName != activeApp) {
-                activeApp = cleanName
-                VerdiPlugin.onAppConnected(activeApp)
+            val cleanName = pkgToAppName(pkg)
+            if (cleanName != null && cleanName != activeApp) {
+                commitActiveApp(cleanName)
             }
 
             notifyAppConnected(pkg)
@@ -185,14 +225,72 @@ class VerdiAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "rootInActiveWindow is null for pkg=$pkg")
                 return
             }
-            
-            // Collect all visible text nodes
             val texts = ArrayList<String>()
             findTextNodes(rootNode, texts)
             Log.d(TAG, "Collected ${texts.size} text nodes for pkg=$pkg")
-            
-            // Parse for travel metrics
             parseAndEvaluateScreenTexts(texts)
+        }
+    }
+
+    // ── Helper: map a package name to a clean app name (null = unknown/system) ──
+    private fun pkgToAppName(pkg: String): String? = when {
+        pkg.contains("uber", ignoreCase = true)    -> "Uber"
+        pkg.contains("didi", ignoreCase = true)    -> "DiDi"
+        pkg.contains("cabify", ignoreCase = true)  -> "Cabify"
+        pkg.contains("verdi", ignoreCase = true)   -> "Verdi (Pruebas)"
+        pkg.contains("launcher", ignoreCase = true) ||
+            pkg == "com.android.launcher"  ||
+            pkg == "com.android.launcher2" ||
+            pkg == "com.android.launcher3" -> "Ninguna"
+        else -> null
+    }
+
+    // ── Helper: persist new active app and notify JS ──
+    private fun commitActiveApp(cleanName: String) {
+        activeApp = cleanName
+        if (cleanName != "Ninguna" && cleanName != "Verdi (Pruebas)") {
+            getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+                .edit().putString("lastConnectedApp", cleanName).apply()
+        }
+        VerdiPlugin.onAppConnected(activeApp)
+    }
+
+    // ── Method 1 impl: scan the windows list for the topmost app window ──
+    private fun detectForegroundAppFromWindowsList() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
+        try {
+            val wins = windows ?: return
+            for (win in wins) {
+                if (win.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+                val root = win.root ?: continue
+                val windowPkg = root.packageName?.toString()
+                root.recycle()
+                if (windowPkg == null) continue
+                val cleanName = pkgToAppName(windowPkg) ?: continue
+                if (cleanName != activeApp) {
+                    Log.d(TAG, "App change via WINDOWS_CHANGED list: $activeApp -> $cleanName (pkg=$windowPkg)")
+                    commitActiveApp(cleanName)
+                }
+                return // only process the topmost application window
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "detectForegroundAppFromWindowsList failed", e)
+        }
+    }
+
+    // ── Method 3 impl: inspect rootInActiveWindow directly ──
+    private fun detectForegroundAppFromRoot() {
+        try {
+            val root = rootInActiveWindow ?: return
+            val rootPkg = root.packageName?.toString() ?: run { root.recycle(); return }
+            root.recycle()
+            val cleanName = pkgToAppName(rootPkg) ?: return
+            if (cleanName != activeApp) {
+                Log.d(TAG, "App change via rootInActiveWindow: $activeApp -> $cleanName (pkg=$rootPkg)")
+                commitActiveApp(cleanName)
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "detectForegroundAppFromRoot failed", e)
         }
     }
 
@@ -373,6 +471,7 @@ class VerdiAccessibilityService : AccessibilityService() {
     override fun onInterrupt() {
         isServiceRunning = false
         activeApp = "Ninguna"
+        pollHandler.removeCallbacks(pollRunnable)
         VerdiPlugin.onAppConnected(activeApp)
     }
 
@@ -380,6 +479,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         super.onDestroy()
         isServiceRunning = false
         activeApp = "Ninguna"
+        pollHandler.removeCallbacks(pollRunnable)
         VerdiPlugin.onAppConnected(activeApp)
         try {
             stopForeground(true)

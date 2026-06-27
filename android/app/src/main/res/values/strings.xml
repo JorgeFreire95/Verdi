@@ -1,6 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
     <string name="app_name">Verdi</string>
+    <string name="accessibility_service_label">Verdi — Lectura de Pantalla</string>
+    <string name="accessibility_service_description">Permite a Verdi leer la pantalla de Uber, DiDi y Cabify para calcular la rentabilidad de los viajes y mostrar la burbuja de ayuda.</string>
     <string name="title_activity_main">Verdi</string>
     <string name="package_name">com.verdi.app</string>
     <string name="custom_url_scheme">com.verdi.app</string>

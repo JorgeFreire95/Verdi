@@ -1,10 +1,14 @@
 package com.verdi.app
 
 import android.Manifest
+import android.app.AppOpsManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.os.Process
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.Log
@@ -65,12 +69,20 @@ class VerdiPlugin : Plugin() {
 
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val lastConnectedApp = prefs.getString("lastConnectedApp", "")
-        val currentActiveApp = if (!VerdiAccessibilityService.activeApp.isNullOrBlank() &&
-            VerdiAccessibilityService.activeApp != "Ninguna" &&
-            VerdiAccessibilityService.activeApp != "Verdi (Pruebas)") {
-            VerdiAccessibilityService.activeApp
-        } else {
-            lastConnectedApp.orEmpty()
+
+        // Primary source: accessibility service static variable (real-time)
+        // Fallback 1: UsageStatsManager (last foreground rideshare app in the past 30s)
+        // Fallback 2: lastConnectedApp saved in SharedPreferences
+        val accessibilityActiveApp = VerdiAccessibilityService.activeApp
+            .takeIf { !it.isNullOrBlank() && it != "Ninguna" && it != "Verdi (Pruebas)" }
+        val usageActiveApp = getRecentForegroundRideshareApp(context)
+        val currentActiveApp = accessibilityActiveApp
+            ?: usageActiveApp
+            ?: lastConnectedApp.orEmpty()
+
+        // Persist usage-detected app so future calls have it as fallback
+        if (usageActiveApp != null && lastConnectedApp != usageActiveApp) {
+            prefs.edit().putString("lastConnectedApp", usageActiveApp).apply()
         }
 
         val uberInstalled = isAppInstalled(context, "com.ubercab.driver")
@@ -78,6 +90,16 @@ class VerdiPlugin : Plugin() {
         val cabifyInstalled = isAppInstalled(context, "com.cabify.driver")
 
         Log.d(TAG, "DEBUG checkPermissions: VerdiAccessibilityService.activeApp=${VerdiAccessibilityService.activeApp} lastConnectedApp=$lastConnectedApp currentActiveApp=$currentActiveApp")
+
+        val usageStatsGranted = try {
+            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as AppOpsManager
+            val mode = appOps.checkOpNoThrow(
+                AppOpsManager.OPSTR_GET_USAGE_STATS,
+                Process.myUid(),
+                context.packageName
+            )
+            mode == AppOpsManager.MODE_ALLOWED
+        } catch (e: Exception) { false }
 
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
@@ -94,6 +116,7 @@ class VerdiPlugin : Plugin() {
         ret.put("uberInstalled", uberInstalled)
         ret.put("didiInstalled", didiInstalled)
         ret.put("cabifyInstalled", cabifyInstalled)
+        ret.put("usageStatsGranted", usageStatsGranted)
         Log.d(TAG, "checkPermissions result=" + ret.toString())
         call.resolve(ret)
     }
@@ -113,6 +136,10 @@ class VerdiPlugin : Plugin() {
             }
         } else if (type == "accessibility") {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+        } else if (type == "usageStats") {
+            val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
         } else if (type == "runtime" || type == "location" || type == "bluetooth") {
@@ -196,6 +223,38 @@ class VerdiPlugin : Plugin() {
         val ret = JSObject()
         ret.put("active", active)
         call.resolve(ret)
+    }
+
+    /** Uses UsageStatsManager to find the most recent rideshare app in the foreground
+     *  within the last 5 minutes. Returns null if permission not granted or no match. */
+    private fun getRecentForegroundRideshareApp(context: Context): String? {
+        return try {
+            val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+            val endTime = System.currentTimeMillis()
+            val startTime = endTime - 300_000L // last 5 minutes
+            val events = usm.queryEvents(startTime, endTime)
+            val event = UsageEvents.Event()
+            var lastPkg: String? = null
+            var lastTs = 0L
+            while (events.hasNextEvent()) {
+                events.getNextEvent(event)
+                @Suppress("DEPRECATION")
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND && event.timeStamp > lastTs) {
+                    lastTs = event.timeStamp
+                    lastPkg = event.packageName
+                }
+            }
+            val pkg = lastPkg ?: return null
+            when {
+                pkg.contains("uber", ignoreCase = true) -> "Uber"
+                pkg.contains("didi", ignoreCase = true) -> "DiDi"
+                pkg.contains("cabify", ignoreCase = true) -> "Cabify"
+                else -> null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "UsageStatsManager fallback failed", e)
+            null
+        }
     }
 
     private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
