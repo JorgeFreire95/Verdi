@@ -229,7 +229,9 @@ class VerdiPlugin : Plugin() {
     }
 
     /** Uses UsageStatsManager to find the most recent rideshare app in the foreground
-     *  within the last 5 minutes. Returns null if permission not granted or no match. */
+     *  within the last 5 minutes. Returns null if permission not granted or no match.
+     *  Only tracks rideshare app events — switching back to Verdi or other apps does NOT
+     *  reset the result so the last known rideshare app is preserved. */
     private fun getRecentForegroundRideshareApp(context: Context): String? {
         return try {
             val usm = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
@@ -237,23 +239,26 @@ class VerdiPlugin : Plugin() {
             val startTime = endTime - 300_000L // last 5 minutes
             val events = usm.queryEvents(startTime, endTime)
             val event = UsageEvents.Event()
-            var lastPkg: String? = null
+            var lastRideshareApp: String? = null
             var lastTs = 0L
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
                 @Suppress("DEPRECATION")
                 if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND && event.timeStamp > lastTs) {
-                    lastTs = event.timeStamp
-                    lastPkg = event.packageName
+                    val pkg = event.packageName ?: continue
+                    val appName = when {
+                        pkg.contains("uber", ignoreCase = true) -> "Uber"
+                        pkg.contains("didi", ignoreCase = true) -> "DiDi"
+                        pkg.contains("cabify", ignoreCase = true) -> "Cabify"
+                        else -> null
+                    }
+                    if (appName != null) {
+                        lastTs = event.timeStamp
+                        lastRideshareApp = appName
+                    }
                 }
             }
-            val pkg = lastPkg ?: return null
-            when {
-                pkg.contains("uber", ignoreCase = true) -> "Uber"
-                pkg.contains("didi", ignoreCase = true) -> "DiDi"
-                pkg.contains("cabify", ignoreCase = true) -> "Cabify"
-                else -> null
-            }
+            lastRideshareApp
         } catch (e: Exception) {
             Log.w(TAG, "UsageStatsManager fallback failed", e)
             null
