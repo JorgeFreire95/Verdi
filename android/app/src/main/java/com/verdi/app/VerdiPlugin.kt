@@ -237,17 +237,23 @@ class VerdiPlugin : Plugin() {
             val startTime = endTime - 300_000L // last 5 minutes
             val events = usm.queryEvents(startTime, endTime)
             val event = UsageEvents.Event()
-            var lastPkg: String? = null
-            var lastTs = 0L
+            var lastRideSharePkg: String? = null
+            var lastRideShareTs = 0L
             while (events.hasNextEvent()) {
                 events.getNextEvent(event)
                 @Suppress("DEPRECATION")
-                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND && event.timeStamp > lastTs) {
-                    lastTs = event.timeStamp
-                    lastPkg = event.packageName
+                if (event.eventType == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                    val pkg = event.packageName
+                    val isRideshare = pkg.contains("uber", ignoreCase = true) ||
+                        pkg.contains("didi", ignoreCase = true) ||
+                        pkg.contains("cabify", ignoreCase = true)
+                    if (isRideshare && event.timeStamp > lastRideShareTs) {
+                        lastRideShareTs = event.timeStamp
+                        lastRideSharePkg = pkg
+                    }
                 }
             }
-            val pkg = lastPkg ?: return null
+            val pkg = lastRideSharePkg ?: return null
             when {
                 pkg.contains("uber", ignoreCase = true) -> "Uber"
                 pkg.contains("didi", ignoreCase = true) -> "DiDi"

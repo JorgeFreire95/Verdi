@@ -257,11 +257,15 @@ class VerdiAccessibilityService : AccessibilityService() {
         VerdiPlugin.onAppConnected(activeApp)
     }
 
-    // ── Method 1 impl: scan the windows list for the topmost app window ──
+    // ── Method 1 impl: scan the windows list for the active rideshare app ──
+    // Scans ALL TYPE_APPLICATION windows so that a launcher window listed before a
+    // rideshare window doesn't incorrectly reset activeApp to "Ninguna".
     private fun detectForegroundAppFromWindowsList() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) return
         try {
             val wins = windows ?: return
+            var rideshareApp: String? = null
+            var hasLauncher = false
             for (win in wins) {
                 if (win.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
                 val root = win.root ?: continue
@@ -269,11 +273,18 @@ class VerdiAccessibilityService : AccessibilityService() {
                 root.recycle()
                 if (windowPkg == null) continue
                 val cleanName = pkgToAppName(windowPkg) ?: continue
-                if (cleanName != activeApp) {
-                    Log.d(TAG, "App change via WINDOWS_CHANGED list: $activeApp -> $cleanName (pkg=$windowPkg)")
-                    commitActiveApp(cleanName)
+                if (cleanName == "Ninguna") {
+                    hasLauncher = true
+                } else {
+                    // Rideshare app found — takes priority, stop scanning
+                    rideshareApp = cleanName
+                    break
                 }
-                return // only process the topmost application window
+            }
+            val targetApp = rideshareApp ?: if (hasLauncher) "Ninguna" else return
+            if (targetApp != activeApp) {
+                Log.d(TAG, "App change via WINDOWS_CHANGED list: $activeApp -> $targetApp (rideshare=$rideshareApp, launcher=$hasLauncher)")
+                commitActiveApp(targetApp)
             }
         } catch (e: Exception) {
             Log.w(TAG, "detectForegroundAppFromWindowsList failed", e)
