@@ -209,8 +209,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         // ── Content scan for rideshare apps ──
         if (pkg.contains("uber", ignoreCase = true) ||
             pkg.contains("didi", ignoreCase = true) ||
-            pkg.contains("cabify", ignoreCase = true) ||
-            pkg.contains("verdi", ignoreCase = true)
+            pkg.contains("cabify", ignoreCase = true)
         ) {
             Log.d(TAG, "Scanning active app package $pkg")
             val cleanName = pkgToAppName(pkg)
@@ -237,7 +236,10 @@ class VerdiAccessibilityService : AccessibilityService() {
         pkg.contains("uber", ignoreCase = true)    -> "Uber"
         pkg.contains("didi", ignoreCase = true)    -> "DiDi"
         pkg.contains("cabify", ignoreCase = true)  -> "Cabify"
-        pkg.contains("verdi", ignoreCase = true)   -> "Verdi (Pruebas)"
+        // Never mark Verdi itself as the foreground rideshare app.
+        // On some devices, overlay/utility windows from our own process can
+        // appear during app switches and incorrectly overwrite Cabify/Uber/DiDi.
+        pkg.contains("verdi", ignoreCase = true)   -> null
         pkg.contains("launcher", ignoreCase = true) ||
             pkg == "com.android.launcher"  ||
             pkg == "com.android.launcher2" ||

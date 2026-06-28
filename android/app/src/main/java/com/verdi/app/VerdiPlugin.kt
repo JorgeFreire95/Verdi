@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -87,7 +88,9 @@ class VerdiPlugin : Plugin() {
 
         val uberInstalled = isAppInstalled(context, "com.ubercab.driver")
         val didiInstalled = isAppInstalled(context, "com.didichuxing.driver") || isAppInstalled(context, "com.didiglobal.driver")
-        val cabifyInstalled = isAppInstalled(context, "com.cabify.driver")
+        val cabifyInstalled = isAppInstalled(context, "com.cabify.driver") ||
+            isAnyInstalledPackageContaining(context, "cabify") ||
+            usageActiveApp == "Cabify"
 
         Log.d(TAG, "DEBUG checkPermissions: VerdiAccessibilityService.activeApp=${VerdiAccessibilityService.activeApp} lastConnectedApp=$lastConnectedApp currentActiveApp=$currentActiveApp")
 
@@ -258,7 +261,9 @@ class VerdiPlugin : Plugin() {
     }
 
     private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
-        val expectedComponentName = "${context.packageName}/${service.name}"
+        val expectedPackage = context.packageName
+        val expectedClass = service.name
+        val expectedShortClass = ".${service.simpleName}"
         val enabledServicesSetting = Settings.Secure.getString(
             context.contentResolver,
             Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
@@ -268,7 +273,21 @@ class VerdiPlugin : Plugin() {
         colonSplitter.setString(enabledServicesSetting)
         while (colonSplitter.hasNext()) {
             val componentNameString = colonSplitter.next()
-            if (componentNameString.equals(expectedComponentName, ignoreCase = true)) {
+            val component = ComponentName.unflattenFromString(componentNameString)
+            if (component != null) {
+                val samePackage = component.packageName.equals(expectedPackage, ignoreCase = true)
+                val sameClass = component.className.equals(expectedClass, ignoreCase = true) ||
+                    component.className.equals(expectedShortClass, ignoreCase = true) ||
+                    component.className.equals("$expectedPackage$expectedShortClass", ignoreCase = true)
+                if (samePackage && sameClass) {
+                    return true
+                }
+            }
+
+            // Fallback for OEM variants that may store custom flattened strings.
+            if (componentNameString.contains(expectedPackage, ignoreCase = true) &&
+                (componentNameString.contains(expectedClass, ignoreCase = true) ||
+                 componentNameString.contains(expectedShortClass, ignoreCase = true))) {
                 return true
             }
         }
@@ -279,6 +298,15 @@ class VerdiPlugin : Plugin() {
         return try {
             context.packageManager.getPackageInfo(packageName, 0)
             true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun isAnyInstalledPackageContaining(context: Context, token: String): Boolean {
+        return try {
+            val packages = context.packageManager.getInstalledPackages(0)
+            packages.any { pkg -> pkg.packageName?.contains(token, ignoreCase = true) == true }
         } catch (e: Exception) {
             false
         }
