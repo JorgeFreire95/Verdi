@@ -23,6 +23,10 @@ const STATE = {
   minHourlyEarnings: 15000,
   minPerDistance: 350,
   lastCapturedTime: 0,
+  lastAppConnectionEvent: 0,
+  lastActiveApp: null,
+  uiLockedApp: null,  // When this is set, the UI is protected from updates
+  uiLockedUntil: 0,   // Timestamp until which the UI is locked
   stats: {
     total: 0,
     green: 0,
@@ -239,8 +243,19 @@ async function checkAndroidPermissions() {
     }
     updateBubbleUI(STATE.bubbleActive);
 
-    // Always refresh app connection UI from native state, even if bubble is not active
-    updateAppConnectionUI(res.activeApp || 'Ninguna');
+    // Check if UI is currently LOCKED by onAppConnected event
+    const isUILocked = Date.now() < STATE.uiLockedUntil;
+    
+    if (isUILocked) {
+      const timeRemaining = Math.ceil((STATE.uiLockedUntil - Date.now()) / 1000);
+      console.log('[checkAndroidPermissions] 🔒 UI IS LOCKED - DO NOT TOUCH APP UI - locked app:', STATE.uiLockedApp, 'time remaining:', timeRemaining + 's');
+      
+      // NEVER restore or touch the UI during lock - onAppConnected is in control
+      // Just log the state for debugging
+      console.log('[checkAndroidPermissions] Native activeApp:', res.activeApp, 'but UI is locked so we ignore it');
+    } else {
+      console.log('[checkAndroidPermissions] UI unlocked - checkAndroidPermissions will NOT update app connection UI anymore. Let onAppConnected handle it exclusively.');
+    }
 
     // Check if the accessibility service is running in background
     const isServiceActive = res.isServiceRunning || (res.accessibility && res.overlay);
@@ -302,58 +317,50 @@ async function checkAndroidPermissions() {
 // Update connection status list items in dashboard
 function updateAppConnectionUI(activeApp) {
   try {
-    // Use direct DOM queries every time to avoid stale cache issues
+    console.log('[updateAppConnectionUI] UPDATING - activeApp:', activeApp);
+    
     const appUber    = document.getElementById('status-app-uber');
     const appDiDi    = document.getElementById('status-app-didi');
     const appCabify  = document.getElementById('status-app-cabify');
     const textUber   = document.getElementById('status-text-uber');
     const textDiDi   = document.getElementById('status-text-didi');
     const textCabify = document.getElementById('status-text-cabify');
-    const installUber   = document.getElementById('install-badge-uber');
-    const installDiDi   = document.getElementById('install-badge-didi');
-    const installCabify = document.getElementById('install-badge-cabify');
 
-    console.log('[Verdi] updateAppConnectionUI activeApp=' + activeApp +
-      ' appUber=' + !!appUber + ' textCabify=' + !!textCabify);
-
-    if (!appUber) return;
-
-    const inst = STATE.installations || { uber: false, didi: false, cabify: false };
-
-    // If the active app is a rideshare app, it must be installed
-    if (activeApp === 'Uber')   inst.uber   = true;
-    if (activeApp === 'DiDi')   inst.didi   = true;
-    if (activeApp === 'Cabify') inst.cabify = true;
-
-    const setbadge = (el, installed) => {
-      if (!el) return;
-      el.innerText   = installed ? 'Instalada' : 'No detectada';
-      el.className   = 'app-install-badge ' + (installed ? 'installed' : 'not-installed');
-    };
-    setbadge(installUber,   inst.uber);
-    setbadge(installDiDi,   inst.didi);
-    setbadge(installCabify, inst.cabify);
-
-    // Reset active states
-    [appUber, appDiDi, appCabify].forEach(el => el && el.classList.remove('active', 'uber', 'didi', 'cabify'));
-
-    if (textUber)   textUber.innerText   = inst.uber   ? 'Segundo plano' : 'No detectada';
-    if (textDiDi)   textDiDi.innerText   = inst.didi   ? 'Segundo plano' : 'No detectada';
-    if (textCabify) textCabify.innerText = inst.cabify ? 'Segundo plano' : 'No detectada';
-
-    // Highlight the active foreground app
-    if (activeApp === 'Uber' && appUber && textUber) {
-      appUber.classList.add('active', 'uber');
-      textUber.innerText = 'Activo';
-    } else if (activeApp === 'DiDi' && appDiDi && textDiDi) {
-      appDiDi.classList.add('active', 'didi');
-      textDiDi.innerText = 'Activo';
-    } else if (activeApp === 'Cabify' && appCabify && textCabify) {
-      appCabify.classList.add('active', 'cabify');
-      textCabify.innerText = 'Activo';
+    if (!appUber || !appCabify) {
+      console.error('[updateAppConnectionUI] CRITICAL: DOM elements not found!');
+      return;
     }
+
+    // Reset all apps first
+    [appUber, appDiDi, appCabify].forEach(el => {
+      if (el) {
+        el.classList.remove('active', 'uber', 'didi', 'cabify');
+      }
+    });
+    
+    // Set all text to "Segundo plano" by default
+    if (textUber) textUber.innerText = 'Segundo plano';
+    if (textDiDi) textDiDi.innerText = 'Segundo plano';
+    if (textCabify) textCabify.innerText = 'Segundo plano';
+
+    // NOW highlight the active app
+    console.log('[updateAppConnectionUI] Setting', activeApp, 'to ACTIVE');
+    if (activeApp === 'Uber') {
+      appUber.classList.add('active', 'uber');
+      if (textUber) textUber.innerText = 'Activo';
+    } else if (activeApp === 'DiDi') {
+      appDiDi.classList.add('active', 'didi');
+      if (textDiDi) textDiDi.innerText = 'Activo';
+    } else if (activeApp === 'Cabify') {
+      appCabify.classList.add('active', 'cabify');
+      if (textCabify) textCabify.innerText = 'Activo';
+      console.log('[updateAppConnectionUI] ✅ Cabify element classes:', appCabify.className);
+      console.log('[updateAppConnectionUI] ✅ Cabify text content:', textCabify.innerText);
+    }
+    
+    console.log('[updateAppConnectionUI] DONE');
   } catch (e) {
-    console.error('[Verdi] Error in updateAppConnectionUI:', e);
+    console.error('[updateAppConnectionUI] ERROR:', e);
   }
 }
 
@@ -627,12 +634,36 @@ function setupNativeListeners() {
     // Listen for driver app foreground activity notifications
     VerdiPlugin.addListener('onAppConnected', (data) => {
       const appName = data.appName || 'Ninguna';
+      console.log('[onAppConnected] 🔔 EVENT FIRED - appName:', appName);
+      
       // Ignore self-scan events to preserve last known driver app state in UI
-      if (appName === 'Verdi (Pruebas)') return;
+      if (appName === 'Verdi (Pruebas)') {
+        console.log('[onAppConnected] Ignoring Verdi self-scan');
+        return;
+      }
+      
+      // FORCE UPDATE: immediately update UI
+      console.log('[onAppConnected] 🚀 FORCING UI UPDATE for:', appName);
       updateAppConnectionUI(appName);
       
+      // Lock UI: make sure it stays updated for 10 seconds
+      STATE.uiLockedApp = appName;
+      STATE.uiLockedUntil = Date.now() + 10000;
+      console.log('[onAppConnected] 🔒 UI LOCKED for 10 seconds:', appName);
+      
+      // Verify UI was updated (200ms delay to let DOM render)
+      setTimeout(() => {
+        const appEl = document.getElementById('status-app-' + appName.toLowerCase());
+        const textEl = document.getElementById('status-text-' + appName.toLowerCase());
+        if (appEl && appEl.classList.contains('active')) {
+          console.log('[onAppConnected] ✅ VERIFIED - UI shows', appName, 'as ACTIVE');
+        } else {
+          console.warn('[onAppConnected] ⚠️  UI update FAILED -', appName, 'not marked active');
+          console.log('[onAppConnected] DEBUG: appEl found=', !!appEl, 'has active class=', appEl ? appEl.classList.contains('active') : 'N/A');
+        }
+      }, 200);
+      
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      // Wait at least 6 seconds after a trip check before returning to graphite searching state
       if (timeSinceCapture > 6000) {
         if (appName !== 'Ninguna' && appName !== 'Desconectado' && appName !== 'Verdi (Pruebas)') {
           elements.liveStatusTitle.innerText = `Conectado a ${appName}`;

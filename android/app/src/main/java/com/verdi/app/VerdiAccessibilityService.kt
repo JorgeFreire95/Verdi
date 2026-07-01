@@ -25,7 +25,7 @@ class VerdiAccessibilityService : AccessibilityService() {
     companion object {
         var isServiceRunning = false
         @Volatile var activeApp = "Ninguna"
-        private const val TAG = "VerdiAccessibilityService"
+        private const val TAG = "VerdiAccService"
     }
 
     // Config cache in memory
@@ -229,6 +229,28 @@ class VerdiAccessibilityService : AccessibilityService() {
             Log.d(TAG, "Collected ${texts.size} text nodes for pkg=$pkg")
             parseAndEvaluateScreenTexts(texts)
         }
+        
+        // ── Fallback: Always check root if event didn't trigger a known rideshare app ──
+        // This handles cases where Cabify/Uber/DiDi might not fire events properly
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || 
+            eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+            try {
+                val root = rootInActiveWindow
+                if (root != null) {
+                    val rootPkg = root.packageName?.toString()
+                    root.recycle()
+                    if (!rootPkg.isNullOrBlank()) {
+                        val cleanName = pkgToAppName(rootPkg)
+                        if (cleanName != null && cleanName != activeApp) {
+                            Log.d(TAG, "Fallback detection triggered: $activeApp -> $cleanName (pkg=$rootPkg)")
+                            commitActiveApp(cleanName)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Fallback detection error", e)
+            }
+        }
     }
 
     // ── Helper: map a package name to a clean app name (null = unknown/system) ──
@@ -300,18 +322,26 @@ class VerdiAccessibilityService : AccessibilityService() {
         if (pkg.contains("verdi", ignoreCase = true)) {
             return
         }
-        val now = System.currentTimeMillis()
-        if (pkg == lastNotifiedPkg && now - lastNotifiedTime < 5000) {
-            return
-        }
-        lastNotifiedPkg = pkg
-        lastNotifiedTime = now
-
+        
         val cleanName = when {
             pkg.contains("uber", ignoreCase = true) -> "Uber"
             pkg.contains("didi", ignoreCase = true) -> "DiDi"
             pkg.contains("cabify", ignoreCase = true) -> "Cabify"
             else -> "App"
+        }
+        
+        // Only throttle for non-rideshare apps, always update rideshare apps
+        if (cleanName == "App") {
+            val now = System.currentTimeMillis()
+            if (pkg == lastNotifiedPkg && now - lastNotifiedTime < 5000) {
+                return
+            }
+            lastNotifiedPkg = pkg
+            lastNotifiedTime = now
+        } else {
+            // For rideshare apps, always mark the time but don't throttle
+            lastNotifiedPkg = pkg
+            lastNotifiedTime = System.currentTimeMillis()
         }
 
         // Guardar persistente en SharedPreferences
@@ -332,7 +362,11 @@ class VerdiAccessibilityService : AccessibilityService() {
         
         node.text?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
         node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
-        node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+        
+        // getHintText requires API 26, so only call it on newer versions
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+        }
         
         for (i in 0 until node.childCount) {
             findTextNodes(node.getChild(i), texts)
