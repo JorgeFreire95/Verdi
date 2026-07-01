@@ -42,10 +42,16 @@ class VerdiPlugin : Plugin() {
         }
 
         fun onAppConnected(appName: String) {
+            Log.d("VerdiPlugin", "🔌 onAppConnected called with appName=$appName, instance=${instance != null}")
             val app = JSObject().apply {
                 put("appName", appName)
             }
-            instance?.notifyListeners("onAppConnected", app)
+            if (instance != null) {
+                instance?.notifyListeners("onAppConnected", app)
+                Log.d("VerdiPlugin", "📢 Event emitted to JavaScript listeners for appName=$appName")
+            } else {
+                Log.w("VerdiPlugin", "⚠️  instance is NULL - cannot emit event! Plugin may not be loaded.")
+            }
         }
     }
 

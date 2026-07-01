@@ -114,7 +114,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         super.onServiceConnected()
         isServiceRunning = true
         activeApp = "Ninguna"
-        Log.d(TAG, "onServiceConnected - Service connected to accessibility")
+        Log.d(TAG, "✨ onServiceConnected - Accessibility Service is NOW ACTIVE")
 
         // Programmatically configure the service to receive ALL window events.
         // This is more reliable than the XML config on some OEM devices (OPPO/ColorOS).
@@ -166,7 +166,13 @@ class VerdiAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         val pkg = event.packageName?.toString() ?: ""
         val eventType = event.eventType
-        Log.d(TAG, "onAccessibilityEvent type=$eventType pkg=$pkg activeApp=$activeApp")
+        val eventTypeStr = when(eventType) {
+            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "WINDOW_STATE_CHANGED"
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> "WINDOWS_CHANGED"
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> "WINDOW_CONTENT_CHANGED"
+            else -> "TYPE_$eventType"
+        }
+        Log.d(TAG, "🔔 onAccessibilityEvent [$eventTypeStr] pkg=$pkg activeApp=$activeApp")
 
         // ── Detection Method 1: TYPE_WINDOWS_CHANGED (most reliable on Android 9+ / OPPO) ──
         // Fires whenever any window appears/disappears. We inspect the windows list to find
@@ -211,9 +217,10 @@ class VerdiAccessibilityService : AccessibilityService() {
             pkg.contains("didi", ignoreCase = true) ||
             pkg.contains("cabify", ignoreCase = true)
         ) {
-            Log.d(TAG, "Scanning active app package $pkg")
+            Log.d(TAG, "🚗 Scanning active app package $pkg")
             val cleanName = pkgToAppName(pkg)
             if (cleanName != null && cleanName != activeApp) {
+                Log.d(TAG, "  └─ App change detected: $cleanName")
                 commitActiveApp(cleanName)
             }
 
@@ -221,12 +228,28 @@ class VerdiAccessibilityService : AccessibilityService() {
 
             val rootNode = rootInActiveWindow
             if (rootNode == null) {
-                Log.w(TAG, "rootInActiveWindow is null for pkg=$pkg")
+                Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkg")
                 return
             }
+            
+            // Log root node info for debugging
+            Log.d(TAG, "  └─ Root node packageName: ${rootNode.packageName}")
+            Log.d(TAG, "  └─ Root node className: ${rootNode.className}")
+            Log.d(TAG, "  └─ Root node childCount: ${rootNode.childCount}")
+            
             val texts = ArrayList<String>()
             findTextNodes(rootNode, texts)
-            Log.d(TAG, "Collected ${texts.size} text nodes for pkg=$pkg")
+            Log.d(TAG, "  └─ Collected ${texts.size} text nodes from tree")
+            
+            // Log all collected texts for debugging
+            if (texts.isNotEmpty()) {
+                texts.forEachIndexed { idx, text ->
+                    if (text.isNotBlank()) {
+                        Log.d(TAG, "    [Text $idx]: ${text.take(100)}")
+                    }
+                }
+            }
+            
             parseAndEvaluateScreenTexts(texts)
         }
         
@@ -271,12 +294,16 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     // ── Helper: persist new active app and notify JS ──
     private fun commitActiveApp(cleanName: String) {
+        Log.d(TAG, "🔄 commitActiveApp: Changing state from '$activeApp' to '$cleanName'")
         activeApp = cleanName
         if (cleanName != "Ninguna" && cleanName != "Verdi (Pruebas)") {
             getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
                 .edit().putString("lastConnectedApp", cleanName).apply()
+            Log.d(TAG, "  💾 Saved to SharedPreferences: lastConnectedApp=$cleanName")
         }
+        Log.d(TAG, "  📞 Calling VerdiPlugin.onAppConnected('$cleanName')...")
         VerdiPlugin.onAppConnected(activeApp)
+        Log.d(TAG, "  ✅ VerdiPlugin.onAppConnected() returned")
     }
 
     // ── Method 1 impl: scan the windows list for the topmost app window ──
@@ -360,22 +387,49 @@ class VerdiAccessibilityService : AccessibilityService() {
     private fun findTextNodes(node: AccessibilityNodeInfo?, texts: ArrayList<String>) {
         if (node == null) return
         
-        node.text?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
-        node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
-        
-        // getHintText requires API 26, so only call it on newer versions
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
-        }
-        
-        for (i in 0 until node.childCount) {
-            findTextNodes(node.getChild(i), texts)
+        try {
+            node.text?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+            node.contentDescription?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+            
+            // getHintText requires API 26, so only call it on newer versions
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+            }
+            
+            // Also try to get viewIdResourceName for debugging
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
+                node.viewIdResourceName?.takeIf { it.isNotBlank() }?.let { 
+                    texts.add("[ViewId: $it]")
+                }
+            }
+            
+            for (i in 0 until node.childCount) {
+                val child = node.getChild(i)
+                if (child != null) {
+                    findTextNodes(child, texts)
+                    try {
+                        child.recycle()
+                    } catch (e: Exception) {
+                        // Ignore recycle errors
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error in findTextNodes", e)
         }
     }
 
     private fun parseFlexibleNumber(raw: String): Double? {
+        if (raw.isBlank()) {
+            Log.d(TAG, "    [parseNum] Empty input")
+            return null
+        }
+        
         var t = raw.replace(Regex("[^0-9.,]"), "")
-        if (t.isBlank()) return null
+        if (t.isBlank()) {
+            Log.d(TAG, "    [parseNum] No digits found in '$raw'")
+            return null
+        }
 
         val commaCount = t.count { it == ',' }
         val dotCount = t.count { it == '.' }
@@ -399,17 +453,24 @@ class VerdiAccessibilityService : AccessibilityService() {
             }
         }
 
-        return t.toDoubleOrNull()
+        val result = t.toDoubleOrNull()
+        Log.d(TAG, "    [parseNum] raw='$raw' -> cleaned='$t' -> result=$result")
+        return result
     }
 
     private fun parseAndEvaluateScreenTexts(texts: List<String>) {
-        Log.d(TAG, "parseAndEvaluateScreenTexts called with ${texts.size} texts")
+        Log.d(TAG, "📊 parseAndEvaluateScreenTexts: Processing ${texts.size} text nodes")
+        if (texts.isEmpty()) {
+            Log.w(TAG, "  ⚠️  No texts collected - tree may be empty or using WebView")
+            return
+        }
+        
         var detectedPrice: Double? = null
         var detectedDistance: Double? = null
         var detectedTimeMins: Double? = null
 
-        // Regex pattern matches
-        val pricePattern = Pattern.compile("[$]\\s*([0-9]+[.,]?[0-9]*[.,]?[0-9]*)")
+        // Enhanced regex patterns for multiple formats (CLP uses $, Cabify may use different formats)
+        val pricePattern = Pattern.compile("[$€¥]\\s*([0-9]+[.,]?[0-9]*[.,]?[0-9]*)|([0-9]+[.,]?[0-9]*[.,]?[0-9]*)\\s*[$€¥]", Pattern.CASE_INSENSITIVE)
         val distPattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(km|KM|mi|mi\\.|Millas|millas)", Pattern.CASE_INSENSITIVE)
         val timePattern = Pattern.compile("([0-9]+)\\s*(min|mins|minutos|hr|h|hora|horas)", Pattern.CASE_INSENSITIVE)
 
@@ -417,11 +478,11 @@ class VerdiAccessibilityService : AccessibilityService() {
             // Price Match
             val priceMatcher = pricePattern.matcher(text)
             if (priceMatcher.find()) {
-                val raw = priceMatcher.group(1) ?: ""
+                val raw = (priceMatcher.group(1) ?: priceMatcher.group(2) ?: "")
                 val parsed = parseFlexibleNumber(raw)
                 parsed?.let {
                     detectedPrice = it
-                    Log.d(TAG, "Detected price text='$text' -> $detectedPrice")
+                    Log.d(TAG, "  💰 Price: text='${text.take(50)}' -> \$$detectedPrice")
                 }
             }
             
@@ -431,7 +492,7 @@ class VerdiAccessibilityService : AccessibilityService() {
                 val valStr = distMatcher.group(1)?.replace(",", ".")
                 valStr?.toDoubleOrNull()?.let {
                     detectedDistance = it
-                    Log.d(TAG, "Detected distance text='$text' -> $detectedDistance")
+                    Log.d(TAG, "  📍 Distance: text='${text.take(50)}' -> $detectedDistance km")
                 }
             }
 
@@ -441,32 +502,34 @@ class VerdiAccessibilityService : AccessibilityService() {
                 val valStr = timeMatcher.group(1)
                 valStr?.toDoubleOrNull()?.let {
                     detectedTimeMins = it
-                    Log.d(TAG, "Detected time text='$text' -> $detectedTimeMins")
+                    Log.d(TAG, "  ⏱️  Time: text='${text.take(50)}' -> ${it.toInt()} min")
                 }
             }
         }
 
         // If we found a candidate trip (needs at least price & distance to evaluate)
         if (detectedPrice != null && detectedDistance != null) {
-            Log.d(TAG, "Candidate trip found price=$detectedPrice distance=$detectedDistance time=$detectedTimeMins")
+            Log.d(TAG, "✅ Candidate trip: price=\$$detectedPrice distance=${detectedDistance}km time=$detectedTimeMins")
             val now = System.currentTimeMillis()
             if (now - lastCapturedTime < captureCooldown) {
-                Log.d(TAG, "Skipping duplicate capture due cooldown")
+                Log.d(TAG, "  ⏳ Skipping due cooldown (${captureCooldown}ms)")
                 return
             }
             lastCapturedTime = now
 
             val finalTimeMins = detectedTimeMins ?: 15.0 // fallback if time text parsing failed
             runProfitabilityCalculation(detectedPrice!!, detectedDistance!!, finalTimeMins)
+        } else {
+            Log.w(TAG, "  ❌ No valid trip found: price=${detectedPrice} distance=${detectedDistance}")
         }
     }
 
     private fun runProfitabilityCalculation(price: Double, distance: Double, timeMins: Double) {
-        Log.d(TAG, "runProfitabilityCalculation - Price: $price, Distance: $distance, Time: $timeMins")
+        Log.d(TAG, "🧠 runProfitabilityCalculation")
+        Log.d(TAG, "   Price: \$$price | Distance: ${distance}km | Time: ${timeMins.toInt()}min")
         
         // Calculation
         val fuelUsed = distance / vehicleEfficiency.toDouble()
-
         val fuelCost = fuelUsed * fuelPrice.toDouble()
         val netProfit = price - fuelCost
         
@@ -478,15 +541,18 @@ class VerdiAccessibilityService : AccessibilityService() {
         var decision = "RED"
         if (netProfit > 0) {
             val pctDist = distanceRate / minPerDistance.toDouble()
+            Log.d(TAG, "   NetProfit: \$$netProfit | DistRate: \$${String.format("%.0f", distanceRate)}/km | MinRequired: \$${minPerDistance}/km | %: ${String.format("%.1f", pctDist*100)}%")
 
             if (pctDist >= 1.0) {
                 decision = "GREEN"
             } else if (pctDist >= 0.7) {
                 decision = "YELLOW"
             }
+        } else {
+            Log.d(TAG, "   NetProfit is NEGATIVE: \$$netProfit")
         }
 
-        Log.d(TAG, "Decision: $decision - Net: $netProfit, Hourly: $hourlyRate")
+        Log.d(TAG, "   🚦 Decision: $decision | Hourly: \$${String.format("%.0f", hourlyRate)}/hr")
 
         // Send local Broadcast to FloatingBubbleService
         val bubbleIntent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
@@ -498,7 +564,7 @@ class VerdiAccessibilityService : AccessibilityService() {
             putExtra("currency", currency)
         }
         sendBroadcast(bubbleIntent)
-        Log.d(TAG, "Broadcast sent to FloatingBubbleService")
+        Log.d(TAG, "   💰 Broadcast sent to FloatingBubbleService with decision=$decision")
 
         // Push to Web client via VerdiPlugin
         VerdiPlugin.onTripCaptured(price, distance, timeMins)
@@ -508,6 +574,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         isServiceRunning = false
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
+        Log.w(TAG, "⚠️  onInterrupt - Accessibility Service was INTERRUPTED")
         VerdiPlugin.onAppConnected(activeApp)
     }
 

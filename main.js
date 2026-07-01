@@ -634,7 +634,7 @@ function setupNativeListeners() {
     // Listen for driver app foreground activity notifications
     VerdiPlugin.addListener('onAppConnected', (data) => {
       const appName = data.appName || 'Ninguna';
-      console.log('[onAppConnected] 🔔 EVENT FIRED - appName:', appName);
+      console.log('[onAppConnected] 🔔 EVENT RECEIVED from plugin - appName:', appName, 'timestamp:', new Date().toISOString());
       
       // Ignore self-scan events to preserve last known driver app state in UI
       if (appName === 'Verdi (Pruebas)') {
