@@ -237,6 +237,11 @@ async function checkAndroidPermissions() {
       cabify: !!res.cabifyInstalled
     };
 
+    // Update install badge labels in DOM
+    if (elements.installUber)  elements.installUber.innerText  = STATE.installations.uber   ? 'Instalado' : 'No instalado';
+    if (elements.installDiDi)  elements.installDiDi.innerText  = STATE.installations.didi   ? 'Instalado' : 'No instalado';
+    if (elements.installCabify) elements.installCabify.innerText = STATE.installations.cabify ? 'Instalado' : 'No instalado';
+
     // If overlay permission is disabled, turn off active bubble state
     if (!res.overlay) {
       STATE.bubbleActive = false;
@@ -254,7 +259,11 @@ async function checkAndroidPermissions() {
       // Just log the state for debugging
       console.log('[checkAndroidPermissions] Native activeApp:', res.activeApp, 'but UI is locked so we ignore it');
     } else {
-      console.log('[checkAndroidPermissions] UI unlocked - checkAndroidPermissions will NOT update app connection UI anymore. Let onAppConnected handle it exclusively.');
+      // UI unlocked — sync app connection status from native state as safety net
+      // (covers cases where the initial onAppConnected event was missed due to timing)
+      if (res.activeApp) {
+        updateAppConnectionUI(res.activeApp);
+      }
     }
 
     // Check if the accessibility service is running in background

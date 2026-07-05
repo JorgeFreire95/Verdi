@@ -38,7 +38,8 @@ class VerdiPlugin : Plugin() {
                 put("distance", distance)
                 put("timeMins", timeMins)
             }
-            instance?.notifyListeners("onTripCaptured", trip)
+            // retainUntilConsumed=true: event is queued if WebView is paused (app in background)
+            instance?.notifyListeners("onTripCaptured", trip, true)
         }
 
         fun onAppConnected(appName: String) {
@@ -47,7 +48,9 @@ class VerdiPlugin : Plugin() {
                 put("appName", appName)
             }
             if (instance != null) {
-                instance?.notifyListeners("onAppConnected", app)
+                // retainUntilConsumed=true: event is queued if WebView is paused (app in background)
+                // This prevents losing the "Cabify activo" event when Verdi is not in foreground
+                instance?.notifyListeners("onAppConnected", app, true)
                 Log.d("VerdiPlugin", "📢 Event emitted to JavaScript listeners for appName=$appName")
             } else {
                 Log.w("VerdiPlugin", "⚠️  instance is NULL - cannot emit event! Plugin may not be loaded.")
@@ -58,6 +61,19 @@ class VerdiPlugin : Plugin() {
     override fun load() {
         super.load()
         instance = this
+        // Fire the current active app state immediately so the WebView gets it on startup.
+        // This covers the case where Cabify/Uber/DiDi was opened BEFORE Verdi's WebView loaded
+        // (instance was null when the accessibility event fired, so the event was lost).
+        val currentApp = VerdiAccessibilityService.activeApp
+        if (!currentApp.isNullOrBlank() && currentApp != "Ninguna" && currentApp != "Verdi (Pruebas)") {
+            Log.d(TAG, "load() → replaying active app state: $currentApp")
+            bridge.activity?.runOnUiThread {
+                notifyListeners("onAppConnected", JSObject().apply { put("appName", currentApp) }, true)
+            }
+        }
+        // NOTE: We do NOT fall back to SharedPreferences here.
+        // lastConnectedApp could be stale (e.g. Cabify was closed but still saved).
+        // The polling in checkPermissions handles the SharedPreferences fallback on first load.
     }
 
     @RequiresApi(Build.VERSION_CODES.M)
@@ -77,15 +93,19 @@ class VerdiPlugin : Plugin() {
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val lastConnectedApp = prefs.getString("lastConnectedApp", "")
 
-        // Primary source: accessibility service static variable (real-time)
-        // Fallback 1: UsageStatsManager (last foreground rideshare app in the past 30s)
-        // Fallback 2: lastConnectedApp saved in SharedPreferences
-        val accessibilityActiveApp = VerdiAccessibilityService.activeApp
+        // Primary source: accessibility service static variable (real-time).
+        // If the service explicitly set "Ninguna" (launcher detected = app was closed),
+        // do NOT fall back to UsageStats or SharedPreferences — the app is genuinely inactive.
+        val rawAccessibilityApp = VerdiAccessibilityService.activeApp
+        val isExplicitlyNone = rawAccessibilityApp == "Ninguna"
+        val accessibilityActiveApp = rawAccessibilityApp
             .takeIf { !it.isNullOrBlank() && it != "Ninguna" && it != "Verdi (Pruebas)" }
-        val usageActiveApp = getRecentForegroundRideshareApp(context)
+        // Only use UsageStats fallback when the service hasn't explicitly reset to Ninguna
+        val usageActiveApp = if (!isExplicitlyNone) getRecentForegroundRideshareApp(context) else null
+        // Also skip SharedPreferences fallback when explicitly None — avoids showing stale state
         val currentActiveApp = accessibilityActiveApp
             ?: usageActiveApp
-            ?: lastConnectedApp.orEmpty()
+            ?: if (!isExplicitlyNone) lastConnectedApp.orEmpty() else ""
 
         // Persist usage-detected app so future calls have it as fallback
         if (usageActiveApp != null && lastConnectedApp != usageActiveApp) {

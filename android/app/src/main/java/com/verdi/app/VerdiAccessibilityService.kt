@@ -45,6 +45,14 @@ class VerdiAccessibilityService : AccessibilityService() {
     private var lastNotifiedTime = 0L
     private val NOTIF_CHANNEL_ID = "verdi_service_channel"
 
+    // ── Debounce for "Ninguna" resets ──
+    // When the launcher briefly appears (e.g. during app-switch transition), we don't want
+    // to immediately reset the active rideshare app. Only reset after 4 continuous seconds
+    // of no rideshare app being visible.
+    private val ningunaResetHandler = Handler(Looper.getMainLooper())
+    private var ningunaResetPending = false
+    private val NINGUNA_DEBOUNCE_MS = 4000L
+
     // ── Polling fallback: checks foreground app every 1 second via rootInActiveWindow ──
     private val pollHandler = Handler(Looper.getMainLooper())
     private val pollRunnable = object : Runnable {
@@ -294,6 +302,28 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     // ── Helper: persist new active app and notify JS ──
     private fun commitActiveApp(cleanName: String) {
+        if (cleanName == "Ninguna") {
+            // Debounce: don't reset immediately — wait 4s to avoid false resets during
+            // brief launcher transitions when switching between apps.
+            if (ningunaResetPending) return
+            ningunaResetPending = true
+            Log.d(TAG, "⏳ Debouncing Ninguna reset (${NINGUNA_DEBOUNCE_MS}ms)...")
+            ningunaResetHandler.postDelayed({
+                ningunaResetPending = false
+                if (activeApp != "Ninguna") {
+                    Log.d(TAG, "🔄 commitActiveApp (debounced): Changing state from '$activeApp' to 'Ninguna'")
+                    activeApp = "Ninguna"
+                    VerdiPlugin.onAppConnected(activeApp)
+                }
+            }, NINGUNA_DEBOUNCE_MS)
+            return
+        }
+        // Non-Ninguna app: cancel any pending reset and update immediately
+        if (ningunaResetPending) {
+            ningunaResetHandler.removeCallbacksAndMessages(null)
+            ningunaResetPending = false
+            Log.d(TAG, "✅ Cancelled pending Ninguna reset")
+        }
         Log.d(TAG, "🔄 commitActiveApp: Changing state from '$activeApp' to '$cleanName'")
         activeApp = cleanName
         if (cleanName != "Ninguna" && cleanName != "Verdi (Pruebas)") {
@@ -317,7 +347,10 @@ class VerdiAccessibilityService : AccessibilityService() {
                 val windowPkg = root.packageName?.toString()
                 root.recycle()
                 if (windowPkg == null) continue
-                val cleanName = pkgToAppName(windowPkg) ?: continue
+                // Topmost app window found. If its package is unknown (null = Verdi itself or
+                // any unrecognised app), stop here — don't keep scanning lower windows that
+                // might be a launcher and incorrectly fire commitActiveApp("Ninguna").
+                val cleanName = pkgToAppName(windowPkg) ?: return
                 if (cleanName != activeApp) {
                     Log.d(TAG, "App change via WINDOWS_CHANGED list: $activeApp -> $cleanName (pkg=$windowPkg)")
                     commitActiveApp(cleanName)
@@ -574,6 +607,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         isServiceRunning = false
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
+        ningunaResetHandler.removeCallbacksAndMessages(null)
         Log.w(TAG, "⚠️  onInterrupt - Accessibility Service was INTERRUPTED")
         VerdiPlugin.onAppConnected(activeApp)
     }
@@ -583,6 +617,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         isServiceRunning = false
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
+        ningunaResetHandler.removeCallbacksAndMessages(null)
         VerdiPlugin.onAppConnected(activeApp)
         try {
             stopForeground(true)
