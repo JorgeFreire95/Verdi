@@ -8,6 +8,7 @@ const VerdiPlugin = registerPlugin('Verdi', {
     checkPermissions: async () => ({ overlay: false, accessibility: false }),
     requestPermissions: async (args) => ({ status: 'prompted' }),
     updateConfig: async (config) => { console.log('Mock Config Sended to Android:', config); return { status: 'ok' }; },
+    updateBubbleState: async (args) => { console.log('Mock UpdateBubbleState:', args); return { status: 'ok' }; },
     toggleBubble: async (args) => ({ active: args.active })
   })
 });
@@ -625,6 +626,16 @@ function setupNativeListeners() {
       elements.liveStatusDesc.innerText = desc;
       elements.liveBubbleText.innerText = emoji;
       elements.liveTrafficLight.className = `traffic-light-preview ${borderClass}`;
+
+      // Notify native overlay bubble of the new color/state
+      VerdiPlugin.updateBubbleState({
+        decision: results.decision,
+        price: trip.price,
+        fuel: results.fuelCost,
+        net: results.netProfit,
+        hourly: results.hourlyRate,
+        currency: STATE.currency
+      }).catch(err => console.warn('updateBubbleState failed:', err));
       
       // Save to history
       addTripToHistory({

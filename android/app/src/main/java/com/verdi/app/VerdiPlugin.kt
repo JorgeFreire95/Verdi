@@ -216,6 +216,31 @@ class VerdiPlugin : Plugin() {
     
 
     @PluginMethod
+    fun updateBubbleState(call: PluginCall) {
+        val decision  = call.getString("decision",  "GRAPHITE") ?: "GRAPHITE"
+        val price     = call.getDouble("price",     0.0)        ?: 0.0
+        val fuel      = call.getDouble("fuel",      0.0)        ?: 0.0
+        val net       = call.getDouble("net",       0.0)        ?: 0.0
+        val hourly    = call.getDouble("hourly",    0.0)        ?: 0.0
+        val currency  = call.getString("currency",  "CLP")      ?: "CLP"
+
+        val intent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
+            putExtra("decision", decision)
+            putExtra("price",    price)
+            putExtra("fuel",     fuel)
+            putExtra("net",      net)
+            putExtra("hourly",   hourly)
+            putExtra("currency", currency)
+        }
+        context.sendBroadcast(intent)
+        Log.d(TAG, "UPDATE_BUBBLE broadcast sent - Decision: $decision")
+
+        val ret = JSObject()
+        ret.put("status", "ok")
+        call.resolve(ret)
+    }
+
+    @PluginMethod
     fun updateConfig(call: PluginCall) {
         val sharedPrefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
         val editor = sharedPrefs.edit()
