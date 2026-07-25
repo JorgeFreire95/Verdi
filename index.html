@@ -14,6 +14,96 @@
 </head>
 <body>
   <div class="app-container">
+    <!-- Permission Wizard Modal -->
+    <div class="wizard-overlay" id="wizard-overlay">
+      <div class="wizard-container">
+        <!-- Wizard Header -->
+        <div class="wizard-header">
+          <h2 id="wizard-title">Bienvenido a Verdi</h2>
+          <div class="wizard-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" id="wizard-progress-fill"></div>
+            </div>
+            <p class="progress-text" id="wizard-progress-text">Paso 1 de 3</p>
+          </div>
+        </div>
+
+        <!-- Wizard Content -->
+        <div class="wizard-content">
+          <!-- Step 1: Welcome -->
+          <div class="wizard-step active" id="wizard-step-1">
+            <div class="step-icon">👋</div>
+            <h3>¡Hola! Configura Verdi en 3 simples pasos</h3>
+            <p>Necesitamos acceso a tu pantalla para analizar ofertas de viajes y ayudarte a maximizar tus ganancias.</p>
+            <p class="step-subtitle">No almacenamos datos personales. Solo analizamos lo que ves en pantalla.</p>
+            <div class="wizard-actions">
+              <button class="btn-wizard-next" id="btn-step-1-next">Empezar Configuración</button>
+            </div>
+          </div>
+
+          <!-- Step 2: Floating Bubble Permission -->
+          <div class="wizard-step" id="wizard-step-2">
+            <div class="step-icon">🫧</div>
+            <h3>Paso 1: Burbuja Flotante</h3>
+            <p class="step-description">Verdi necesita mostrar un botón flotante en tu pantalla para darte análisis en tiempo real.</p>
+
+            <div class="permission-instruction">
+              <p class="instruction-label">👉 Cómo activar:</p>
+              <ol>
+                <li>Haz clic en "Otorgar Permiso" abajo</li>
+                <li>Busca y selecciona <strong>"Verdi"</strong></li>
+                <li>Activa <strong>"Permitir"</strong></li>
+                <li>Regresa a esta app</li>
+              </ol>
+            </div>
+
+            <div class="wizard-actions">
+              <button class="btn-wizard-permission" id="btn-perm-overlay">Otorgar Permiso</button>
+              <button class="btn-wizard-skip" id="btn-skip-overlay">Saltar (no recomendado)</button>
+            </div>
+          </div>
+
+          <!-- Step 3: Accessibility Service -->
+          <div class="wizard-step" id="wizard-step-3">
+            <div class="step-icon">👁️</div>
+            <h3>Paso 2: Lectura de Pantalla</h3>
+            <p class="step-description">Verdi necesita leer lo que ves en pantalla para detectar ofertas automáticamente.</p>
+
+            <div class="permission-instruction">
+              <p class="instruction-label">👉 Cómo activar:</p>
+              <ol>
+                <li>Haz clic en "Otorgar Permiso" abajo</li>
+                <li>Ve a <strong>Servicios de Accesibilidad</strong></li>
+                <li>Busca y selecciona <strong>"Verdi"</strong></li>
+                <li>Activa el servicio</li>
+                <li>Regresa a esta app</li>
+              </ol>
+            </div>
+
+            <div class="wizard-actions">
+              <button class="btn-wizard-permission" id="btn-perm-accessibility">Otorgar Permiso</button>
+              <button class="btn-wizard-skip" id="btn-skip-accessibility">Saltar (no recomendado)</button>
+            </div>
+          </div>
+
+          <!-- Step 4: Confirmation -->
+          <div class="wizard-step" id="wizard-step-4">
+            <div class="step-icon">✅</div>
+            <h3>¡Configuración Completa!</h3>
+            <p class="step-description">Verdi está listo para analizar tus viajes y maximizar tus ganancias.</p>
+
+            <div class="confirmation-box" id="wizard-confirmation-box">
+              <!-- Renderizado dinámico en main.js -->
+            </div>
+
+            <div class="wizard-actions">
+              <button class="btn-wizard-finish" id="btn-wizard-finish">Ir al Panel Principal</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Header -->
     <header class="app-header">
       <div class="logo-container">

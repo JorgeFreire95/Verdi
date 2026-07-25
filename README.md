@@ -138,6 +138,22 @@ gantt
 - **Replay de estado en carga:** Al abrir Verdi tras haber activado Cabify, el plugin sincroniza el estado inmediatamente en lugar de esperar el próximo ciclo de polling.
 - **Badges de instalación en tiempo real:** Uber, DiDi y Cabify muestran correctamente "Instalado" o "No instalado" actualizados cada 2 segundos.
 
+### v1.2.0 — Sprint 5 (2026-07-24)
+
+#### ✨ Mejoras y Simplificación de Permisos
+
+- **Simplificación del Sistema de Permisos:** Se eliminaron por completo las solicitudes de permisos de Ubicación (`ACCESS_FINE_LOCATION`, etc.) y Bluetooth en la app, reduciendo el acoso de cuadros de diálogo y aumentando la confianza del usuario.
+- **Remoción de UsageStats:** Se eliminó el requisito del permiso oculto de Estadísticas de Uso (`PACKAGE_USAGE_STATS`). La detección nativa de apps activas ahora recae de forma exclusiva y limpia en el `VerdiAccessibilityService`.
+- **Asistente (Wizard) de Permisos Dinámico:**
+  - Analiza y salta pasos de manera adaptativa si detecta que el permiso de accesibilidad o burbuja ya están habilitados.
+  - Reacción instantánea mediante `visibilitychange` al regresar de la configuración del sistema Android.
+  - Botones interactivos que cambian a verde con la etiqueta `"✓ ¡Permiso Otorgado!"` antes de avanzar automáticamente tras 1 segundo.
+  - Resumen dinámico del paso final personalizado que advierte sobre las consecuencias de omitir pasos específicos.
+- **Mejoras en el Comportamiento de la Burbuja (Overlay):**
+  - **Efecto de Atracción (Snap):** Al ser arrastrada por la pantalla y liberada, la burbuja siempre hace snap horizontal de forma automática y magnética hacia el costado derecho del dispositivo (`x=0`).
+  - **Apagado Sencillo y Directo:** Se integró un botón rojo `"APAGAR SEMÁFORO"` en el panel detallado que apaga el servicio directamente (`stopSelf()`).
+  - **Sincronización Web-Nativa:** El Dashboard de control web detecta la terminación del proceso nativo de la burbuja y actualiza instantáneamente el interruptor a "Iniciar".
+
 ---
 
 ## 🚀 Funcionalidades Clave

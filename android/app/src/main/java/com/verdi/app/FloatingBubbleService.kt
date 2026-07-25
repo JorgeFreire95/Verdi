@@ -28,6 +28,7 @@ class FloatingBubbleService : Service() {
 
     companion object {
         private const val TAG = "FloatingBubbleService"
+        @Volatile var isRunning = false
     }
 
     private lateinit var windowManager: WindowManager
@@ -73,6 +74,7 @@ class FloatingBubbleService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         Log.d(TAG, "onCreate called - Creating FloatingBubbleService")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         
@@ -241,6 +243,38 @@ class FloatingBubbleService : Service() {
         }
         panelLayout.addView(closeDescText)
 
+        // "APAGAR SEMÁFORO" Deactivate Button
+        val btnDeactivate = TextView(this).apply {
+            text = "APAGAR SEMÁFORO"
+            setTextColor(Color.WHITE)
+            textSize = 11f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            val paddingV = dpToPx(8)
+            val paddingH = dpToPx(14)
+            setPadding(paddingH, paddingV, paddingH, paddingV)
+
+            val btnShape = GradientDrawable().apply {
+                setColor(Color.parseColor("#7F1D1D")) // Dark Red fill
+                cornerRadius = dpToPx(8).toFloat()
+                setStroke(dpToPx(1), Color.parseColor("#EF4444")) // Light Red border
+            }
+            background = btnShape
+
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dpToPx(12)
+            }
+
+            setOnClickListener {
+                Log.d(TAG, "Deactivate button clicked - stopping FloatingBubbleService")
+                stopSelf()
+            }
+        }
+        panelLayout.addView(btnDeactivate)
+
         windowManager.addView(panelLayout, panelParams)
     }
 
@@ -281,12 +315,16 @@ class FloatingBubbleService : Service() {
                     val deltaY = event.rawY - initialTouchY
                     val clickDuration = System.currentTimeMillis() - touchTime
                     
+                    // Always snap horizontally to 0 (right edge) upon release
+                    params.x = 0
+                    windowManager.updateViewLayout(bubbleLayout, params)
+                    
                     if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10 && clickDuration < 300) {
                         toggleExpandedPanel()
                     } else {
                         // Save last preferred position
                         val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
-                        prefs.edit().putInt("bubble_x", params.x).putInt("bubble_y", params.y).apply()
+                        prefs.edit().putInt("bubble_x", 0).putInt("bubble_y", params.y).apply()
                     }
                     true
                 }
@@ -355,6 +393,7 @@ class FloatingBubbleService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        isRunning = false
         Log.d(TAG, "onDestroy called - Cleaning up FloatingBubbleService")
         try {
             unregisterReceiver(receiver)

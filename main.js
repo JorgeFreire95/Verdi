@@ -39,11 +39,190 @@ const STATE = {
     didi: false,
     cabify: false
   },
-  bubbleActive: false
+  bubbleActive: false,
+  wizardCompleted: false
 };
 
 // DOM Elements
 const elements = {};
+
+// WIZARD MANAGEMENT
+// WIZARD MANAGEMENT
+class PermissionWizard {
+  constructor() {
+    this.currentStep = 1;
+    this.totalSteps = 4;
+    this.overlay = document.getElementById('wizard-overlay');
+    this.isTransitioning = false; // Prevent double transitions
+    this.setupWizardListeners();
+  }
+
+  setupWizardListeners() {
+    // Step 1 next
+    document.getElementById('btn-step-1-next').addEventListener('click', () => this.goToNextPendingStep());
+
+    // Step 2 permissions
+    document.getElementById('btn-perm-overlay').addEventListener('click', () => toggleAndroidPermission('overlay'));
+    document.getElementById('btn-skip-overlay').addEventListener('click', () => this.goToStep(3));
+
+    // Step 3 permissions
+    document.getElementById('btn-perm-accessibility').addEventListener('click', () => toggleAndroidPermission('accessibility'));
+    document.getElementById('btn-skip-accessibility').addEventListener('click', () => this.goToStep(4));
+
+    // Step 4 finish
+    document.getElementById('btn-wizard-finish').addEventListener('click', () => this.completeWizard());
+  }
+
+  goToNextPendingStep() {
+    const hasOverlay = document.getElementById('card-overlay').classList.contains('active');
+    const hasAccessibility = document.getElementById('card-accessibility').classList.contains('active');
+
+    if (this.currentStep === 1) {
+      if (!hasOverlay) {
+        this.goToStep(2);
+      } else if (!hasAccessibility) {
+        this.goToStep(3);
+      } else {
+        this.goToStep(4);
+      }
+    } else if (this.currentStep === 2) {
+      if (!hasAccessibility) {
+        this.goToStep(3);
+      } else {
+        this.goToStep(4);
+      }
+    } else if (this.currentStep === 3) {
+      this.goToStep(4);
+    }
+  }
+
+  goToStep(stepNumber) {
+    if (this.currentStep === stepNumber) return;
+
+    this.isTransitioning = false;
+
+    // Hide current step
+    const currentStepEl = document.getElementById(`wizard-step-${this.currentStep}`);
+    if (currentStepEl) {
+      currentStepEl.classList.remove('active');
+    }
+
+    // Update step and show new one
+    this.currentStep = stepNumber;
+    const newStepEl = document.getElementById(`wizard-step-${this.currentStep}`);
+    if (newStepEl) {
+      newStepEl.classList.add('active');
+    }
+
+    if (this.currentStep === 4) {
+      this.renderConfirmationStep();
+    }
+
+    // Update progress bar
+    const progress = (this.currentStep / this.totalSteps) * 100;
+    document.getElementById('wizard-progress-fill').style.width = progress + '%';
+    document.getElementById('wizard-progress-text').innerText = `Paso ${this.currentStep} de ${this.totalSteps}`;
+  }
+
+  handlePermissionChanged(overlayGranted, accessibilityGranted) {
+    if (this.isTransitioning) return;
+
+    if (this.currentStep === 2 && overlayGranted) {
+      this.isTransitioning = true;
+      const btn = document.getElementById('btn-perm-overlay');
+      if (btn) {
+        btn.innerText = '✓ ¡Permiso Otorgado!';
+        btn.style.background = '#059669';
+        btn.style.boxShadow = '0 0 15px rgba(5, 150, 105, 0.4)';
+      }
+      setTimeout(() => {
+        this.goToNextPendingStep();
+      }, 1000);
+    } else if (this.currentStep === 3 && accessibilityGranted) {
+      this.isTransitioning = true;
+      const btn = document.getElementById('btn-perm-accessibility');
+      if (btn) {
+        btn.innerText = '✓ ¡Permiso Otorgado!';
+        btn.style.background = '#059669';
+        btn.style.boxShadow = '0 0 15px rgba(5, 150, 105, 0.4)';
+      }
+      setTimeout(() => {
+        this.goToNextPendingStep();
+      }, 1000);
+    }
+  }
+
+  renderConfirmationStep() {
+    const hasOverlay = document.getElementById('card-overlay').classList.contains('active');
+    const hasAccessibility = document.getElementById('card-accessibility').classList.contains('active');
+    
+    const box = document.getElementById('wizard-confirmation-box');
+    if (!box) return;
+
+    let html = '';
+    if (hasOverlay) {
+      html += `<div class="conf-item success"><span>✓</span> <p>Burbuja flotante activa</p></div>`;
+    } else {
+      html += `<div class="conf-item warning"><span>⚠</span> <p>Burbuja flotante: Inactiva (no verás el semáforo sobre otras apps)</p></div>`;
+    }
+
+    if (hasAccessibility) {
+      html += `<div class="conf-item success"><span>✓</span> <p>Lectura de pantalla activa</p></div>`;
+    } else {
+      html += `<div class="conf-item warning"><span>⚠</span> <p>Lectura de pantalla: Inactiva (no se detectarán ofertas automáticamente)</p></div>`;
+    }
+
+    if (hasOverlay && hasAccessibility) {
+      html += `<div class="conf-item success-all"><span>⚡</span> <p>Monitoreo automático en tiempo real 100% operativo</p></div>`;
+    } else {
+      html += `<div class="conf-item info"><span>ℹ</span> <p>Puedes activar los permisos pendientes más tarde desde el panel principal</p></div>`;
+    }
+
+    box.innerHTML = html;
+  }
+
+  show() {
+    this.overlay.classList.remove('hidden');
+    this.currentStep = 1;
+    this.goToStep(1);
+  }
+
+  hide() {
+    this.overlay.classList.add('hidden');
+  }
+
+  completeWizard() {
+    STATE.wizardCompleted = true;
+    localStorage.setItem('wizardCompleted', 'true');
+    this.hide();
+
+    // Show success message in dashboard
+    const badge = document.getElementById('service-badge');
+    if (badge) {
+      const hasOverlay = document.getElementById('card-overlay').classList.contains('active');
+      const hasAccessibility = document.getElementById('card-accessibility').classList.contains('active');
+      if (hasOverlay && hasAccessibility) {
+        badge.classList.add('active');
+        document.getElementById('service-status-text').innerText = 'Servicio Activo';
+      }
+    }
+  }
+
+  shouldShow() {
+    const hasOverlay = document.getElementById('card-overlay')?.classList.contains('active');
+    const hasAccessibility = document.getElementById('card-accessibility')?.classList.contains('active');
+    
+    if (hasOverlay && hasAccessibility) {
+      localStorage.setItem('wizardCompleted', 'true');
+      STATE.wizardCompleted = true;
+      return false;
+    }
+    
+    return !localStorage.getItem('wizardCompleted') && !STATE.wizardCompleted;
+  }
+}
+
+let wizard;
 
 // Cache DOM references
 function cacheDom() {
@@ -130,17 +309,22 @@ function loadSettings() {
       console.error('Error parsing local storage settings', e);
     }
   }
-  
+
+  // Load wizard completion status
+  if (localStorage.getItem('wizardCompleted')) {
+    STATE.wizardCompleted = true;
+  }
+
   // Sync state to UI
   elements.currency.value = STATE.currency;
   elements.unitDistance.value = STATE.distanceUnit;
   elements.unitFuel.value = STATE.fuelUnit;
   elements.unitConsumption.value = STATE.consumptionUnit;
-  
+
   elements.fuelPriceInput.value = STATE.fuelPrice;
   elements.efficiencyInput.value = STATE.vehicleEfficiency;
   elements.minPerDistInput.value = STATE.minPerDistance;
-  
+
   // Update badges
   updateSliderBadges();
   updateLabels();
@@ -243,9 +427,11 @@ async function checkAndroidPermissions() {
     if (elements.installDiDi)  elements.installDiDi.innerText  = STATE.installations.didi   ? 'Instalado' : 'No instalado';
     if (elements.installCabify) elements.installCabify.innerText = STATE.installations.cabify ? 'Instalado' : 'No instalado';
 
-    // If overlay permission is disabled, turn off active bubble state
-    if (!res.overlay) {
+    // If overlay permission is disabled or the native bubble service is not running, turn off active state
+    if (!res.overlay || res.isBubbleRunning === false) {
       STATE.bubbleActive = false;
+    } else if (res.isBubbleRunning === true) {
+      STATE.bubbleActive = true;
     }
     updateBubbleUI(STATE.bubbleActive);
 
@@ -305,20 +491,10 @@ async function checkAndroidPermissions() {
       elements.serviceStatusText.innerText = 'Servicio Inactivo';
     }
 
-    // If runtime permissions are missing, request them immediately (native dialog or settings)
-    const locationFine = !!res.locationFine;
-    const bluetoothScan = !!res.bluetoothScan;
-    if (!locationFine || !bluetoothScan) {
-      try {
-        VerdiPlugin.requestPermissions({ type: 'runtime' }).then(r => console.log('requested runtime perms', r)).catch(e => console.warn('runtime perms error', e));
-      } catch (err) {
-        console.warn('Error requesting runtime permissions', err);
-      }
-      // recheck after a short delay
-      setTimeout(checkAndroidPermissions, 1200);
+    // Update wizard if active
+    if (wizard && !STATE.wizardCompleted) {
+      wizard.handlePermissionChanged(res.overlay, res.accessibility);
     }
-
-    // If usage stats permission is missing the card shows "Otorgar" — user taps it manually.
   } catch (err) {
     console.error('Error in checkAndroidPermissions:', err);
   }
@@ -470,11 +646,12 @@ async function toggleAndroidPermission(type) {
     } else if (type === 'accessibility') {
       const active = !document.getElementById('card-accessibility').classList.contains('active');
       await VerdiPlugin.requestPermissions({ type: 'accessibility', value: active });
-    } else if (type === 'usageStats') {
-      await VerdiPlugin.requestPermissions({ type: 'usageStats' });
     }
+
     // Recheck state after requesting
-    setTimeout(checkAndroidPermissions, 1000);
+    setTimeout(() => {
+      checkAndroidPermissions();
+    }, 1000);
   } catch (err) {
     // Simulator mock mode toggle for testing UI
     if (type === 'overlay') {
@@ -484,16 +661,22 @@ async function toggleAndroidPermission(type) {
       const active = !document.getElementById('card-accessibility').classList.contains('active');
       updatePermissionUI('accessibility', active);
     }
-    
-    // Update master service status badge
+
     const ovActive = document.getElementById('card-overlay').classList.contains('active');
     const acActive = document.getElementById('card-accessibility').classList.contains('active');
+
+    // Update master service status badge
     if (ovActive && acActive) {
       elements.serviceBadge.classList.add('active');
       elements.serviceStatusText.innerText = 'Servicio Activo';
     } else {
       elements.serviceBadge.classList.remove('active');
       elements.serviceStatusText.innerText = 'Servicio Inactivo';
+    }
+
+    // Update wizard in browser mock mode
+    if (wizard && !STATE.wizardCompleted) {
+      wizard.handlePermissionChanged(ovActive, acActive);
     }
   }
 }
@@ -761,20 +944,40 @@ function initEvents() {
 }
 
 // Bootstrap Application
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   cacheDom();
   initEvents();
-  loadSettings();
   setupNativeListeners();
-  checkAndroidPermissions();
-  
+  loadSettings();
+
+  // Initialize wizard
+  wizard = new PermissionWizard();
+
+  // Check permissions immediately so wizard knows current status
+  await checkAndroidPermissions();
+
+  // Show wizard if first time
+  if (wizard.shouldShow()) {
+    wizard.show();
+  } else {
+    wizard.hide();
+  }
+
   // Auto-launch bubble service if active
   if (STATE.bubbleActive) {
     VerdiPlugin.toggleBubble({ active: true }).catch(err => console.warn("Failed starting service on load", err));
   }
-  
+
   // Refrescar permisos y conexión de apps periódicamente cada 2 segundos
   setInterval(checkAndroidPermissions, 2000);
+
+  // Refrescar al volver a primer plano
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      console.log('App resumed, checking permissions immediately...');
+      checkAndroidPermissions();
+    }
+  });
 
   // Initialize Lucide icons
   if (window.lucide) {
