@@ -138,6 +138,20 @@ gantt
 - **Replay de estado en carga:** Al abrir Verdi tras haber activado Cabify, el plugin sincroniza el estado inmediatamente en lugar de esperar el próximo ciclo de polling.
 - **Badges de instalación en tiempo real:** Uber, DiDi y Cabify muestran correctamente "Instalado" o "No instalado" actualizados cada 2 segundos.
 
+### v1.3.0 — Sprint 5 (2026-07-26)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt` | La burbuja de servicio no actualizaba su color en pantalla. La mutación del `GradientDrawable` de fondo no provocaba el redibujado de la vista. | Se implementó el casteo seguro, la reasignación del fondo, y la invocación forzada a `invalidate()` dentro de la cola del hilo principal con `Handler(Looper.getMainLooper())`. |
+| 2 | `main.js` | El asistente de instrucciones de bienvenida e inducción (Wizard) se cerraba de forma inmediata al iniciar si existía la bandera de completado en localStorage, dejando al usuario con permisos desactivados. | Se modificó `shouldShow()` para que siempre mantenga visible el Wizard si falta otorgar accesibilidad o burbuja flotante. |
+| 3 | `VerdiPlugin.kt` y `VerdiAccessibilityService.kt` | Los broadcasts `UPDATE_BUBBLE` no se entregaban de forma de confianza en dispositivos con Android 13+ debido a restricciones de seguridad sobre intents implícitos. | Se configuró `intent.setPackage(...)` para que el intent sea explícito y el sistema Android lo enrute correctamente. |
+
+#### ✨ Mejoras y Soporte
+- **Pestaña interactiva de Ayuda:** Se incorporó una nueva sección de Ayuda (`tab-help`) con instrucciones gráficas paso a paso y acordiones personalizados por marca de teléfono (Xiaomi, Samsung, Realme, Motorola).
+- **Atajo para Ajustes Restringidos:** Añadido un botón de diagnóstico rápido en el asistente de ayuda que abre la Info de la App de Verdi, permitiendo al usuario autorizar "Ajustes Restringidos" con dos toques y desbloquear el interruptor gris de accesibilidad.
+
 ### v1.2.0 — Sprint 5 (2026-07-24)
 
 #### ✨ Mejoras y Simplificación de Permisos
@@ -253,4 +267,6 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 2 | El listener `onAppConnected` limpiaba el estado de conexión al activarse Verdi en primer plano | `main.js`: ignorar eventos con `appName === 'Verdi (Pruebas)'` | ✅ Resuelto |
 | 3 | `updateAppConnectionUI` fallaba silenciosamente por elementos cacheados null | `main.js`: reescrita con `document.getElementById` directo y null-safety completa | ✅ Resuelto |
 | 4 | Build desactualizado si se ejecutaba `npx cap sync android` antes de `npm run build` | Documentado el orden correcto del proceso de build | ✅ Documentado |
+| 5 | La burbuja de servicio no cambiaba de color al detectar rentabilidades | Se reasignó el fondo y se invalidó la vista en el UI thread de `FloatingBubbleService.kt` | ✅ Resuelto |
+| 6 | El Wizard de instrucciones se ocultaba inmediatamente en el inicio de la app | Se modificó `shouldShow()` para evaluar permisos activos en vez de flags de almacenamiento local | ✅ Resuelto |
 

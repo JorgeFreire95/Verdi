@@ -1,5 +1,6 @@
 package com.verdi.app
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,7 +13,9 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -72,6 +75,7 @@ class FloatingBubbleService : Service() {
         return START_STICKY
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate() {
         super.onCreate()
         isRunning = true
@@ -374,21 +378,41 @@ class FloatingBubbleService : Service() {
             }
         }
 
-        // Update bubble background color and text
-        val shape = bubbleView.background as GradientDrawable
-        shape.setColor(Color.parseColor(stateColor))
-        bubbleText.text = emoji
-        
-        // Update Panel labels with currency formatting
-        val cleanCur = if (currencyCode == "CLP" || currencyCode == "COP") "$ " else "$ "
-        textPrice.text = String.format("Precio Oferta: %s%,.0f", cleanCur, price)
-        textFuel.text = String.format("Gasto Gasolina: %s%,.0f", cleanCur, fuel)
-        
-        val netColor = if (net >= 0) "#10B981" else "#EF4444"
-        textProfit.setTextColor(Color.parseColor(netColor))
-        textProfit.text = String.format("Ganancia Neta: %s%,.0f", cleanCur, net)
-        
-        textHourlyRate.text = String.format("Tasa Horaria: %s%,.0f/hr", cleanCur, hourly)
+        // Run UI updates on the main thread loop
+        Handler(Looper.getMainLooper()).post {
+            try {
+                // Safely update bubble background color
+                val shape = bubbleView.background as? GradientDrawable
+                if (shape != null) {
+                    shape.setColor(Color.parseColor(stateColor))
+                    // Re-apply to ensure view redraws
+                    bubbleView.background = shape
+                } else {
+                    // Fallback to recreate background
+                    val fallbackShape = GradientDrawable().apply {
+                        this.shape = GradientDrawable.OVAL
+                        setColor(Color.parseColor(stateColor))
+                        setStroke(dpToPx(3), Color.WHITE)
+                    }
+                    bubbleView.background = fallbackShape
+                }
+                bubbleView.invalidate()
+                bubbleText.text = emoji
+                
+                // Update Panel labels with currency formatting
+                val cleanCur = if (currencyCode == "CLP" || currencyCode == "COP") "$ " else "$ "
+                textPrice.text = String.format("Precio Oferta: %s%,.0f", cleanCur, price)
+                textFuel.text = String.format("Gasto Gasolina: %s%,.0f", cleanCur, fuel)
+                
+                val netColor = if (net >= 0) "#10B981" else "#EF4444"
+                textProfit.setTextColor(Color.parseColor(netColor))
+                textProfit.text = String.format("Ganancia Neta: %s%,.0f", cleanCur, net)
+                
+                textHourlyRate.text = String.format("Tasa Horaria: %s%,.0f/hr", cleanCur, hourly)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating bubble view background", e)
+            }
+        }
     }
 
     override fun onDestroy() {

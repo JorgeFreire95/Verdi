@@ -72,12 +72,20 @@
             <div class="permission-instruction">
               <p class="instruction-label">👉 Cómo activar:</p>
               <ol>
-                <li>Haz clic en "Otorgar Permiso" abajo</li>
-                <li>Ve a <strong>Servicios de Accesibilidad</strong></li>
-                <li>Busca y selecciona <strong>"Verdi"</strong></li>
-                <li>Activa el servicio</li>
-                <li>Regresa a esta app</li>
+                <li>Haz clic en <strong>"Otorgar Permiso"</strong> abajo.</li>
+                <li>Android abrirá la configuración. Entra en <strong>"Aplicaciones instaladas"</strong> (o "Servicios descargados").</li>
+                <li>Busca y selecciona <strong>"Verdi"</strong>.</li>
+                <li>Activa el interruptor para habilitar el servicio.</li>
+                <li>Regresa a Verdi.</li>
               </ol>
+            </div>
+
+            <div class="restricted-settings-help">
+              <p>⚠️ <strong>¿El botón de activar está gris o bloqueado?</strong></p>
+              <p>Android restringe las apps instaladas manualmente. Haz clic abajo, luego toca los <strong>3 puntos</strong> arriba a la derecha y selecciona <strong>"Permitir ajustes restringidos"</strong>.</p>
+              <button class="btn-wizard-help" id="btn-fix-restricted" type="button">
+                Abrir Info de App para Desbloquear
+              </button>
             </div>
 
             <div class="wizard-actions">
@@ -371,6 +379,156 @@
         </div>
       </section>
 
+      <!-- TAB: AYUDA -->
+      <section id="tab-help" class="tab-content">
+        <!-- Interactive Help & Support Guides -->
+        <div class="panel-card">
+          <div class="section-title">
+            <i data-lucide="help-circle"></i>
+            <h2>Guías y Permisos</h2>
+          </div>
+          
+          <p class="section-desc" style="font-size: 13px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 20px;">En esta sección encontrarás todo lo necesario para configurar los permisos requeridos por Verdi según la marca de tu dispositivo.</p>
+
+          <!-- Help Section: Brand Routing Guide -->
+          <div class="help-section-box" style="margin-bottom: 24px;">
+            <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-primary);"><i data-lucide="smartphone" style="color: var(--color-green); width: 18px; height: 18px;"></i> Rutas por Marca de Celular</h3>
+            <p class="help-sub" style="font-size: 12px; color: var(--text-muted); margin-bottom: 14px;">La configuración de accesibilidad cambia según el fabricante. Busca tu marca abajo:</p>
+            
+            <div class="brand-accordions" style="display: flex; flex-direction: column; gap: 10px;">
+              <!-- Xiaomi Accordion -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span class="brand-badge xiaomi">Xiaomi / Poco / Redmi</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <ol class="help-list">
+                    <li>Ve a los <strong>Ajustes del sistema</strong> de tu teléfono.</li>
+                    <li>Entra en <strong>Ajustes adicionales</strong> > <strong>Accesibilidad</strong>.</li>
+                    <li>Toca la pestaña superior <strong>"Físico"</strong> o ve a <strong>Servicios descargados (o Apps descargadas)</strong>.</li>
+                    <li>Busca <strong>Verdi</strong> y activa el interruptor.</li>
+                    <li><em>Nota: Si el interruptor está bloqueado en gris, sigue la solución de Ajustes Restringidos más abajo.</em></li>
+                  </ol>
+                </div>
+              </div>
+
+              <!-- Samsung Accordion -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span class="brand-badge samsung">Samsung</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <ol class="help-list">
+                    <li>Ve a <strong>Ajustes / Configuración</strong>.</li>
+                    <li>Desplázate y selecciona la opción de <strong>Accesibilidad</strong>.</li>
+                    <li>Entra en la sección de <strong>Aplicaciones instaladas</strong>.</li>
+                    <li>Selecciona <strong>Verdi</strong> de la lista y activa el interruptor.</li>
+                  </ol>
+                </div>
+              </div>
+
+              <!-- Realme / Oppo Accordion -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span class="brand-badge realme">Realme / Oppo / OnePlus</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <ol class="help-list">
+                    <li>Ve a <strong>Ajustes</strong>.</li>
+                    <li>Entra en <strong>Ajustes del sistema</strong> (o Ajustes adicionales).</li>
+                    <li>Selecciona <strong>Accesibilidad</strong>.</li>
+                    <li>Busca en la lista principal la opción de <strong>Verdi</strong> para activarla.</li>
+                  </ol>
+                </div>
+              </div>
+
+              <!-- Motorola Accordion -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span class="brand-badge motorola">Motorola / Android Puro</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <ol class="help-list">
+                    <li>Ve a <strong>Ajustes / Configuración</strong>.</li>
+                    <li>Toca <strong>Accesibilidad</strong>.</li>
+                    <li>Busca en la lista principal la opción de <strong>Verdi</strong>.</li>
+                    <li>Activa la casilla para habilitar el servicio.</li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Help Section: Restricted Settings (Grey Button) -->
+          <div class="help-section-box highlight-warning" style="margin-bottom: 24px; background: rgba(245, 158, 11, 0.04); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 14px; padding: 16px;">
+            <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; color: var(--color-yellow);"><i data-lucide="alert-triangle" style="width: 18px; height: 18px;"></i> ¿Botón de Activar Gris o Bloqueado?</h3>
+            <p style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 12px;">En Android 13+, Google bloquea las funciones de accesibilidad para apps instaladas manualmente por seguridad. Para desbloquear el botón gris:</p>
+            <ol class="help-list steps" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 14px; padding-left: 16px;">
+              <li style="margin-bottom: 6px;">Haz clic en el botón naranja de abajo: <strong>"Abrir Info de App"</strong>.</li>
+              <li style="margin-bottom: 6px;">En los ajustes del sistema que se abrirán, toca los <strong>3 puntos en la esquina superior derecha</strong>.</li>
+              <li style="margin-bottom: 6px;">Selecciona la opción <strong>"Permitir ajustes restringidos"</strong> y confirma con tu PIN o huella.</li>
+              <li>Vuelve a esta app, entra a Accesibilidad y ya podrás activar el interruptor sin problemas.</li>
+            </ol>
+            <button class="btn-help-action" id="btn-help-fix-restricted" type="button" style="width: 100%; padding: 12px 16px; font-size: 12px; font-weight: 600; border: 1px dashed rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); color: var(--color-yellow); border-radius: 8px; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 8px;">
+              <i data-lucide="settings" style="width: 14px; height: 14px;"></i> Abrir Info de App para Desbloquear
+            </button>
+          </div>
+
+          <!-- Help Section: FAQs Accordion -->
+          <div class="help-section-box">
+            <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; color: var(--text-primary);"><i data-lucide="message-square" style="color: var(--color-green); width: 18px; height: 18px;"></i> Preguntas Frecuentes</h3>
+            <div class="faq-accordions" style="display: flex; flex-direction: column; gap: 10px;">
+              <!-- FAQ 1 -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span>¿Verdi recopila o guarda mis datos personales?</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <p style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.4;"><strong>No.</strong> Todo el procesamiento de los datos de los viajes se realiza localmente en tu teléfono móvil. Verdi no sube tus capturas de pantalla, ubicaciones, ni datos de viajes a ningún servidor de internet. Tu privacidad está 100% resguardada.</p>
+                </div>
+              </div>
+
+              <!-- FAQ 2 -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span>¿Por qué la burbuja no cambia de color automáticamente?</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <p style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 6px;">Asegúrate de cumplir con los siguientes puntos:</p>
+                  <ul class="help-bullet-list" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding-left: 20px;">
+                    <li style="margin-bottom: 4px;">La burbuja de servicio está encendida en la pantalla principal (debe mostrar el icono 🔘).</li>
+                    <li style="margin-bottom: 4px;">El servicio de accesibilidad está activado (pestaña activa en verde).</li>
+                    <li>Estás en primer plano en Uber, DiDi o Cabify visualizando una oferta de viaje nueva.</li>
+                  </ul>
+                </div>
+              </div>
+
+              <!-- FAQ 3 -->
+              <div class="accordion-item">
+                <button class="accordion-trigger" type="button">
+                  <span>¿Cómo decide Verdi el color del semáforo?</span>
+                  <i data-lucide="chevron-down" class="chevron"></i>
+                </button>
+                <div class="accordion-content">
+                  <p style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 6px;">Verdi calcula el costo de combustible aproximado dividiendo la distancia del viaje por el rendimiento configurado de tu vehículo y multiplicándolo por el precio del combustible. Luego, resta el costo del valor bruto ofrecido. La ganancia neta por distancia se compara contra tu valor mínimo configurado en la pestaña "Costos" para decidir el color:</p>
+                  <ul class="help-bullet-list" style="font-size: 12px; color: var(--text-secondary); line-height: 1.4; padding-left: 20px;">
+                    <li style="margin-bottom: 4px;">🟢 <strong>Verde (Rentable):</strong> Cumple al 100% con tu ganancia por distancia configurada.</li>
+                    <li style="margin-bottom: 4px;">🟡 <strong>Amarillo (Aceptable/Ajustado):</strong> Cumple al menos con un 70% de tu meta.</li>
+                    <li>🔴 <strong>Rojo (Poco rentable / Pérdida):</strong> Menor al 70% de tu meta.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
     </main>
 
     <!-- Bottom Navigation Bar -->
@@ -386,6 +544,10 @@
       <button class="nav-item" data-tab="tab-history">
         <i data-lucide="history"></i>
         <span>Historial</span>
+      </button>
+      <button class="nav-item" data-tab="tab-help">
+        <i data-lucide="help-circle"></i>
+        <span>Ayuda</span>
       </button>
     </nav>
   </div>

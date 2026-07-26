@@ -133,6 +133,13 @@ class VerdiPlugin : Plugin() {
             val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+        } else if (type == "appDetails") {
+            val intent = Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.parse("package:${context.packageName}")
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
         }
         val ret = JSObject()
         ret.put("status", "requested")
@@ -151,6 +158,7 @@ class VerdiPlugin : Plugin() {
         val currency  = call.getString("currency",  "CLP")      ?: "CLP"
 
         val intent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
+            setPackage(context.packageName)
             putExtra("decision", decision)
             putExtra("price",    price)
             putExtra("fuel",     fuel)

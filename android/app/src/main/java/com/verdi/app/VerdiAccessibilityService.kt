@@ -589,6 +589,7 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         // Send local Broadcast to FloatingBubbleService
         val bubbleIntent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
+            setPackage(packageName)
             putExtra("decision", decision)
             putExtra("price", price)
             putExtra("fuel", fuelCost)

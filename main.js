@@ -69,6 +69,12 @@ class PermissionWizard {
     document.getElementById('btn-perm-accessibility').addEventListener('click', () => toggleAndroidPermission('accessibility'));
     document.getElementById('btn-skip-accessibility').addEventListener('click', () => this.goToStep(4));
 
+    // Step 3 restricted settings helper
+    const btnFix = document.getElementById('btn-fix-restricted');
+    if (btnFix) {
+      btnFix.addEventListener('click', () => toggleAndroidPermission('appDetails'));
+    }
+
     // Step 4 finish
     document.getElementById('btn-wizard-finish').addEventListener('click', () => this.completeWizard());
   }
@@ -212,13 +218,13 @@ class PermissionWizard {
     const hasOverlay = document.getElementById('card-overlay')?.classList.contains('active');
     const hasAccessibility = document.getElementById('card-accessibility')?.classList.contains('active');
     
+    // If both permissions are granted, we don't need the wizard.
     if (hasOverlay && hasAccessibility) {
-      localStorage.setItem('wizardCompleted', 'true');
-      STATE.wizardCompleted = true;
       return false;
     }
     
-    return !localStorage.getItem('wizardCompleted') && !STATE.wizardCompleted;
+    // Otherwise, if any permission is missing, always show the wizard to guide the user.
+    return true;
   }
 }
 
@@ -492,7 +498,7 @@ async function checkAndroidPermissions() {
     }
 
     // Update wizard if active
-    if (wizard && !STATE.wizardCompleted) {
+    if (wizard && !wizard.overlay.classList.contains('hidden')) {
       wizard.handlePermissionChanged(res.overlay, res.accessibility);
     }
   } catch (err) {
@@ -646,6 +652,8 @@ async function toggleAndroidPermission(type) {
     } else if (type === 'accessibility') {
       const active = !document.getElementById('card-accessibility').classList.contains('active');
       await VerdiPlugin.requestPermissions({ type: 'accessibility', value: active });
+    } else if (type === 'appDetails') {
+      await VerdiPlugin.requestPermissions({ type: 'appDetails' });
     }
 
     // Recheck state after requesting
@@ -907,10 +915,55 @@ function setupNavigation() {
   });
 }
 
+// Initialize Help Tab interactive accordions and buttons
+function initHelpTabEvents() {
+  // Brand and FAQ Accordion items toggling
+  const triggers = document.querySelectorAll('.accordion-trigger');
+  triggers.forEach(trigger => {
+    trigger.addEventListener('click', () => {
+      const item = trigger.closest('.accordion-item');
+      const content = item.querySelector('.accordion-content');
+      const isActive = item.classList.contains('active');
+      
+      // Close other accordions in the same group to keep UI clean
+      const parentGroup = trigger.closest('.brand-accordions') || trigger.closest('.faq-accordions');
+      if (parentGroup) {
+        parentGroup.querySelectorAll('.accordion-item').forEach(sibling => {
+          if (sibling !== item) {
+            sibling.classList.remove('active');
+            const siblingContent = sibling.querySelector('.accordion-content');
+            if (siblingContent) {
+              siblingContent.style.maxHeight = null;
+            }
+          }
+        });
+      }
+      
+      // Toggle current accordion
+      if (isActive) {
+        item.classList.remove('active');
+        content.style.maxHeight = null;
+      } else {
+        item.classList.add('active');
+        content.style.maxHeight = content.scrollHeight + 'px';
+      }
+    });
+  });
+
+  // Restricted settings fix button inside help tab
+  const btnHelpFix = document.getElementById('btn-help-fix-restricted');
+  if (btnHelpFix) {
+    btnHelpFix.addEventListener('click', () => toggleAndroidPermission('appDetails'));
+  }
+}
+
 // Event Listeners Initialization
 function initEvents() {
   // Navigation tabs
   setupNavigation();
+  
+  // Help tab interactive triggers
+  initHelpTabEvents();
   
   // Sliders value updates
   elements.sliders.forEach(slider => {
