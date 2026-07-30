@@ -144,7 +144,7 @@ gantt
 
 | # | Componente | Descripción del bug | Solución aplicada |
 |---|---|---|---|
-| 1 | `FloatingBubbleService.kt` | La burbuja de servicio no actualizaba su color en pantalla. La mutación del `GradientDrawable` de fondo no provocaba el redibujado de la vista. | Se implementó el casteo seguro, la reasignación del fondo, y la invocación forzada a `invalidate()` dentro de la cola del hilo principal con `Handler(Looper.getMainLooper())`. |
+| 1 | `FloatingBubbleService.kt` | La burbuja de servicio no actualizaba su color en pantalla. La mutación del `GradientDrawable` de fondo no provocaba el redibujado de la vista. | Se implementó la mutación explícita del background drawable (`.mutate()`) y la invocación obligatoria a `windowManager.updateViewLayout(bubbleLayout, params)` en el hilo principal para forzar al `WindowManager` a redibujar el overlay con su nuevo estado. |
 | 2 | `main.js` | El asistente de instrucciones de bienvenida e inducción (Wizard) se cerraba de forma inmediata al iniciar si existía la bandera de completado en localStorage, dejando al usuario con permisos desactivados. | Se modificó `shouldShow()` para que siempre mantenga visible el Wizard si falta otorgar accesibilidad o burbuja flotante. |
 | 3 | `VerdiPlugin.kt` y `VerdiAccessibilityService.kt` | Los broadcasts `UPDATE_BUBBLE` no se entregaban de forma de confianza en dispositivos con Android 13+ debido a restricciones de seguridad sobre intents implícitos. | Se configuró `intent.setPackage(...)` para que el intent sea explícito y el sistema Android lo enrute correctamente. |
 

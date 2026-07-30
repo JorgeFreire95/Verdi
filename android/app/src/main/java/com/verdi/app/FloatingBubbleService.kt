@@ -381,8 +381,8 @@ class FloatingBubbleService : Service() {
         // Run UI updates on the main thread loop
         Handler(Looper.getMainLooper()).post {
             try {
-                // Safely update bubble background color
-                val shape = bubbleView.background as? GradientDrawable
+                // Safely update bubble background color using mutate()
+                val shape = bubbleView.background?.mutate() as? GradientDrawable
                 if (shape != null) {
                     shape.setColor(Color.parseColor(stateColor))
                     // Re-apply to ensure view redraws
@@ -398,6 +398,11 @@ class FloatingBubbleService : Service() {
                 }
                 bubbleView.invalidate()
                 bubbleText.text = emoji
+
+                // Force window manager to redraw the overlay window layout
+                if (::windowManager.isInitialized && ::bubbleLayout.isInitialized) {
+                    windowManager.updateViewLayout(bubbleLayout, params)
+                }
                 
                 // Update Panel labels with currency formatting
                 val cleanCur = if (currencyCode == "CLP" || currencyCode == "COP") "$ " else "$ "

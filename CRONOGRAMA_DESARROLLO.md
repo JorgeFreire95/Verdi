@@ -33,10 +33,10 @@ gantt
     "Debounce de Resets a 'Ninguna' y Badges de Instalación" :done, s4b, 2026-07-02, 2026-07-04
     
     section Sprint 5: Refactor, UI y Soporte
-    "Remoción de Permisos Innecesarios (GPS/Uso)" :active, s5a, 2026-07-20, 2026-07-24
-    "Asistente de Permisos Dinámico y Snap de Burbuja" :active, s5b, 2026-07-24, 2026-07-25
-    "Pestaña de Ayuda Interactiva y Solución Ajustes Restringidos" :active, s5c, 2026-07-26, 2026-07-26
-    "Corrección de Redibujado de Color de Burbuja y Visibilidad de Wizard" :active, s5d, 2026-07-26, 2026-07-26
+    "Remoción de Permisos Innecesarios (GPS/Uso)" :done, s5a, 2026-07-20, 2026-07-24
+    "Asistente de Permisos Dinámico y Snap de Burbuja" :done, s5b, 2026-07-24, 2026-07-25
+    "Pestaña de Ayuda Interactiva y Solución Ajustes Restringidos" :done, s5c, 2026-07-26, 2026-07-26
+    "Corrección de Redibujado de Color de Burbuja y Visibilidad de Wizard" :done, s5d, 2026-07-26, 2026-07-30
 ```
 
 ---
@@ -69,11 +69,11 @@ gantt
   * Habilitación de la cola de eventos en background con `retainUntilConsumed = true`.
   * Implementación de un debounce de 4 segundos para evitar falsos resets en transiciones rápidas de apps.
 
-### Sprint 5: Refactor, UI y Soporte (20 Jul - 26 Jul)
+### Sprint 5: Refactor, UI y Soporte (20 Jul - 30 Jul)
 * **Objetivo:** Optimizar la experiencia de usuario (UX), simplificar permisos y proveer soporte integrado.
 * **Hitos alcanzados:**
   * Eliminación de permisos intrusivos de Ubicación (GPS) y Estadísticas de Uso.
   * Snap magnético horizontal de la burbuja al borde de la pantalla (`x=0`).
   * Lanzador nativo `appDetails` para permitir que el conductor desbloquee **Ajustes Restringidos (Botón Gris)**.
   * Incorporación de la pestaña interactiva **Ayuda** con FAQs y rutas paso a paso por marca de teléfono (Xiaomi, Samsung, Realme, Motorola).
-  * Solución de redibujado de la burbuja y visualización del Wizard.
+  * Solución definitiva de redibujado de color de la burbuja (mediante WindowManager layout update y mutación del drawable) y visualización del Wizard.
