@@ -138,6 +138,22 @@ gantt
 - **Replay de estado en carga:** Al abrir Verdi tras haber activado Cabify, el plugin sincroniza el estado inmediatamente en lugar de esperar el próximo ciclo de polling.
 - **Badges de instalación en tiempo real:** Uber, DiDi y Cabify muestran correctamente "Instalado" o "No instalado" actualizados cada 2 segundos.
 
+### v1.4.0 — Sprint 6 (2026-08-01)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt`, `VerdiAccessibilityService.kt`, `VerdiPlugin.kt` | La burbuja flotante no cambiaba de color (permanecía grafito 🔘) aunque el análisis de rentabilidad era correcto. En Android 13+, los broadcasts locales `UPDATE_BUBBLE` enviados con `setPackage(...)` no se entregaban al servicio de forma confiable cuando la app estaba en background o el sistema recortaba procesos. | Se eliminó por completo el mecanismo de broadcast. Se adoptó el patrón de **llamada directa** mediante `companion object`: `FloatingBubbleService` expone `updateBubble(...)` a través de una referencia `@Volatile private var instance`. Los llamadores (`VerdiAccessibilityService` y `VerdiPlugin`) invocan `FloatingBubbleService.updateBubble(...)` directamente, garantizando entrega instantánea sin intermediarios de IPC. |
+| 2 | `FloatingBubbleService.kt` | Posible **race condition** visual: si dos análisis consecutivos llegaban rápido, el `stateColor` capturado dentro del `Handler.post` podía corresponder al segundo análisis mientras el fondo reflejaba el primero, resultando en emoji y color inconsistentes. | `stateColor` ahora se captura en una variable local **antes** del `Handler.post`, congelando el valor correcto en el closure del hilo principal. |
+| 3 | `FloatingBubbleService.kt` | Si el servicio recibía una actualización mientras las vistas aún se estaban inicializando, se producía un `NullPointerException`. | `instance = this` se asigna al final de `onCreate()`, **después** de que `createBubbleView()` y `createPanelView()` completan, eliminando la ventana de inicialización parcial. |
+
+#### ✨ Mejoras Técnicas
+- **Eliminación del BroadcastReceiver:** `FloatingBubbleService` ya no registra ni necesita un `BroadcastReceiver` para `UPDATE_BUBBLE`. Esto reduce el overhead de IPC, elimina dependencias de contexto Android y simplifica el ciclo de vida del servicio.
+- **Limpieza de `instance` en `onDestroy`:** Al destruirse el servicio, `instance` se pone a `null` antes de cualquier otra operación, evitando llamadas a vistas ya removidas del `WindowManager`.
+
+---
+
 ### v1.3.0 — Sprint 5 (2026-07-26)
 
 #### 🐛 Bugs Corregidos
@@ -267,6 +283,7 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 2 | El listener `onAppConnected` limpiaba el estado de conexión al activarse Verdi en primer plano | `main.js`: ignorar eventos con `appName === 'Verdi (Pruebas)'` | ✅ Resuelto |
 | 3 | `updateAppConnectionUI` fallaba silenciosamente por elementos cacheados null | `main.js`: reescrita con `document.getElementById` directo y null-safety completa | ✅ Resuelto |
 | 4 | Build desactualizado si se ejecutaba `npx cap sync android` antes de `npm run build` | Documentado el orden correcto del proceso de build | ✅ Documentado |
-| 5 | La burbuja de servicio no cambiaba de color al detectar rentabilidades | Se reasignó el fondo y se invalidó la vista en el UI thread de `FloatingBubbleService.kt` | ✅ Resuelto |
+| 5 | La burbuja de servicio no cambiaba de color al detectar rentabilidades (intento previo) | Se reasignó el fondo y se invalidó la vista en el UI thread de `FloatingBubbleService.kt` | ✅ Resuelto parcialmente en v1.3 |
 | 6 | El Wizard de instrucciones se ocultaba inmediatamente en el inicio de la app | Se modificó `shouldShow()` para evaluar permisos activos en vez de flags de almacenamiento local | ✅ Resuelto |
+| 7 | La burbuja no cambiaba de color en Android 13+ (causa raíz definitiva) | Reemplazo total del sistema de broadcasts `UPDATE_BUBBLE` por llamada directa `FloatingBubbleService.updateBubble(...)` via `companion object` | ✅ Resuelto en v1.4 |
 

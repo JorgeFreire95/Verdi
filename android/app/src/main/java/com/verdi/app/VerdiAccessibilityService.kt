@@ -587,18 +587,9 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         Log.d(TAG, "   🚦 Decision: $decision | Hourly: \$${String.format("%.0f", hourlyRate)}/hr")
 
-        // Send local Broadcast to FloatingBubbleService
-        val bubbleIntent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
-            setPackage(packageName)
-            putExtra("decision", decision)
-            putExtra("price", price)
-            putExtra("fuel", fuelCost)
-            putExtra("net", netProfit)
-            putExtra("hourly", hourlyRate)
-            putExtra("currency", currency)
-        }
-        sendBroadcast(bubbleIntent)
-        Log.d(TAG, "   💰 Broadcast sent to FloatingBubbleService with decision=$decision")
+        // Update FloatingBubbleService directly (avoids broadcast delivery issues)
+        FloatingBubbleService.updateBubble(decision, price, fuelCost, netProfit, hourlyRate, currency)
+        Log.d(TAG, "   💰 FloatingBubbleService.updateBubble called - decision=$decision")
 
         // Push to Web client via VerdiPlugin
         VerdiPlugin.onTripCaptured(price, distance, timeMins)

@@ -37,6 +37,11 @@ gantt
     "Asistente de Permisos Dinámico y Snap de Burbuja" :done, s5b, 2026-07-24, 2026-07-25
     "Pestaña de Ayuda Interactiva y Solución Ajustes Restringidos" :done, s5c, 2026-07-26, 2026-07-26
     "Corrección de Redibujado de Color de Burbuja y Visibilidad de Wizard" :done, s5d, 2026-07-26, 2026-07-30
+    
+    section Sprint 6: Corrección Definitiva del Color de Burbuja
+    "Reemplazo de Broadcasts por Llamada Directa (companion object)" :done, s6a, 2026-08-01, 2026-08-01
+    "Fix Race Condition en Actualización de Color (capture-before-post)" :done, s6b, 2026-08-01, 2026-08-01
+    "Limpieza de instance en onDestroy y remoción de BroadcastReceiver" :done, s6c, 2026-08-01, 2026-08-01
 ```
 
 ---
@@ -68,6 +73,15 @@ gantt
   * Corrección en el registro de `VerdiPlugin` en `MainActivity`.
   * Habilitación de la cola de eventos en background con `retainUntilConsumed = true`.
   * Implementación de un debounce de 4 segundos para evitar falsos resets en transiciones rápidas de apps.
+
+### Sprint 6: Corrección Definitiva del Color de Burbuja (01 Ago)
+* **Objetivo:** Resolver de forma definitiva y robusta la falta de cambio de color en la burbuja flotante nativa, identificando la causa raíz en el sistema de comunicación entre servicios.
+* **Hitos alcanzados:**
+  * Identificación de la causa raíz: los broadcasts `UPDATE_BUBBLE` no se entregaban de forma confiable en Android 13+ con `RECEIVER_NOT_EXPORTED`, especialmente cuando la app estaba en background.
+  * **Reemplazo total del mecanismo de broadcast** por llamada directa mediante patrón `companion object` con referencia `@Volatile instance` — el mismo enfoque ya probado en `VerdiPlugin.onTripCaptured`.
+  * Corrección de una **race condition** en la captura del color: `stateColor` se captura antes del `Handler.post` para garantizar consistencia entre emoji y color de fondo.
+  * `instance` ahora se asigna al final de `onCreate()` (post-inicialización de vistas) y se limpia a `null` en `onDestroy()`.
+  * Eliminación completa del `BroadcastReceiver`, las `IntentFilter` y las importaciones `@SuppressLint` relacionadas de `FloatingBubbleService`.
 
 ### Sprint 5: Refactor, UI y Soporte (20 Jul - 30 Jul)
 * **Objetivo:** Optimizar la experiencia de usuario (UX), simplificar permisos y proveer soporte integrado.

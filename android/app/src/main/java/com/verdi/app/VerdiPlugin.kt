@@ -157,17 +157,9 @@ class VerdiPlugin : Plugin() {
         val hourly    = call.getDouble("hourly",    0.0)        ?: 0.0
         val currency  = call.getString("currency",  "CLP")      ?: "CLP"
 
-        val intent = Intent("com.verdi.app.UPDATE_BUBBLE").apply {
-            setPackage(context.packageName)
-            putExtra("decision", decision)
-            putExtra("price",    price)
-            putExtra("fuel",     fuel)
-            putExtra("net",      net)
-            putExtra("hourly",   hourly)
-            putExtra("currency", currency)
-        }
-        context.sendBroadcast(intent)
-        Log.d(TAG, "UPDATE_BUBBLE broadcast sent - Decision: $decision")
+        // Update FloatingBubbleService directly (avoids broadcast delivery issues)
+        FloatingBubbleService.updateBubble(decision, price, fuel, net, hourly, currency)
+        Log.d(TAG, "FloatingBubbleService.updateBubble called - Decision: $decision")
 
         val ret = JSObject()
         ret.put("status", "ok")

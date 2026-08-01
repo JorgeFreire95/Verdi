@@ -1,14 +1,11 @@
 package com.verdi.app
 
-import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.drawable.GradientDrawable
@@ -32,6 +29,12 @@ class FloatingBubbleService : Service() {
     companion object {
         private const val TAG = "FloatingBubbleService"
         @Volatile var isRunning = false
+        @Volatile private var instance: FloatingBubbleService? = null
+
+        /** Direct call from VerdiAccessibilityService or VerdiPlugin — avoids broadcast delivery issues. */
+        fun updateBubble(decision: String, price: Double, fuel: Double, net: Double, hourly: Double, currency: String) {
+            instance?.updateBubbleState(decision, price, fuel, net, hourly, currency)
+        }
     }
 
     private lateinit var windowManager: WindowManager
@@ -52,22 +55,6 @@ class FloatingBubbleService : Service() {
     private var isExpanded = false
     private var stateColor = "#4B5563" // Default Graphite
     
-    private val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == "com.verdi.app.UPDATE_BUBBLE") {
-                val decision = intent.getStringExtra("decision") ?: "GRAPHITE"
-                val price = intent.getDoubleExtra("price", 0.0)
-                val fuel = intent.getDoubleExtra("fuel", 0.0)
-                val net = intent.getDoubleExtra("net", 0.0)
-                val hourly = intent.getDoubleExtra("hourly", 0.0)
-                val cur = intent.getStringExtra("currency") ?: "$"
-                
-                Log.d(TAG, "Broadcast received - Decision: $decision, Price: $price, Net: $net")
-                updateBubbleState(decision, price, fuel, net, hourly, cur)
-            }
-        }
-    }
-
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -75,21 +62,11 @@ class FloatingBubbleService : Service() {
         return START_STICKY
     }
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate() {
         super.onCreate()
         isRunning = true
         Log.d(TAG, "onCreate called - Creating FloatingBubbleService")
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        
-        // Register Broadcast Receiver for communication
-        val filter = IntentFilter("com.verdi.app.UPDATE_BUBBLE")
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(receiver, filter)
-        }
-        Log.d(TAG, "Broadcast receiver registered for UPDATE_BUBBLE")
 
         // Start Foreground Service
         startServiceForeground()
@@ -98,6 +75,8 @@ class FloatingBubbleService : Service() {
         Log.d(TAG, "Creating bubble views")
         createBubbleView()
         createPanelView()
+        // Expose instance only after views are fully initialized
+        instance = this
         Log.d(TAG, "FloatingBubbleService initialized successfully")
     }
 
@@ -378,20 +357,21 @@ class FloatingBubbleService : Service() {
             }
         }
 
+        val colorToApply = stateColor // capture before posting to avoid race conditions
         // Run UI updates on the main thread loop
         Handler(Looper.getMainLooper()).post {
             try {
                 // Safely update bubble background color using mutate()
                 val shape = bubbleView.background?.mutate() as? GradientDrawable
                 if (shape != null) {
-                    shape.setColor(Color.parseColor(stateColor))
+                    shape.setColor(Color.parseColor(colorToApply))
                     // Re-apply to ensure view redraws
                     bubbleView.background = shape
                 } else {
                     // Fallback to recreate background
                     val fallbackShape = GradientDrawable().apply {
                         this.shape = GradientDrawable.OVAL
-                        setColor(Color.parseColor(stateColor))
+                        setColor(Color.parseColor(colorToApply))
                         setStroke(dpToPx(3), Color.WHITE)
                     }
                     bubbleView.background = fallbackShape
@@ -422,13 +402,9 @@ class FloatingBubbleService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        instance = null
         isRunning = false
         Log.d(TAG, "onDestroy called - Cleaning up FloatingBubbleService")
-        try {
-            unregisterReceiver(receiver)
-        } catch (e: Exception) {
-            Log.w(TAG, "Error unregistering receiver", e)
-        }
         if (::bubbleLayout.isInitialized) {
             try {
                 windowManager.removeView(bubbleLayout)
