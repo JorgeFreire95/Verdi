@@ -152,6 +152,21 @@ gantt
 - **Eliminación del BroadcastReceiver:** `FloatingBubbleService` ya no registra ni necesita un `BroadcastReceiver` para `UPDATE_BUBBLE`. Esto reduce el overhead de IPC, elimina dependencias de contexto Android y simplifica el ciclo de vida del servicio.
 - **Limpieza de `instance` en `onDestroy`:** Al destruirse el servicio, `instance` se pone a `null` antes de cualquier otra operación, evitando llamadas a vistas ya removidas del `WindowManager`.
 
+### v1.6.0 — 2026-08-06
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | El `pricePattern` solo reconocía `$`, `€` y `¥` como prefijos de moneda. Uber Chile envía los precios con el formato `CLP7,604`, por lo que nunca se producía match, `detectedPrice` quedaba `null`, no se disparaba `onTripCaptured` y tanto la burbuja como el semáforo del Dashboard permanecían en blanco/grafito indefinidamente. | Se amplió `pricePattern` para reconocer los códigos ISO de moneda latinoamericanos (`CLP`, `COP`, `ARS`, `MXN`, `PEN`, `BRL`, `UYU`) y globales (`USD`, `EUR`) además de los símbolos originales. El grupo capturador se hizo greedy (`[0-9][0-9.,]*`) para cubrir valores con separadores de miles como `"7,604"` o `"1,234,567"`. |
+| 2 | `VerdiAccessibilityService.kt` | Con el regex más greedy, el grupo capturado podía incluir un separador residual al final (ej. `"7,604."`) y fallar silenciosamente en `parseFlexibleNumber` devolviendo `null`. | Se añadió `.trimEnd(',', '.')` al inicio de `parseFlexibleNumber` para recortar separadores sobrantes antes de aplicar cualquier lógica de conversión. |
+
+#### ✨ Mejoras
+- **Soporte completo de monedas regionales en la detección:** el parser de pantalla ahora identifica precios expresados con prefijos de texto (`CLP`, `COP`, `ARS`, etc.) o con símbolos (`$`, `€`, `£`), tanto antes como después del valor numérico.
+- **Parser de números más robusto:** `parseFlexibleNumber` tolera entradas con separadores residuales al final sin arrojar errores ni devolver `null` inesperadamente, manteniendo la cadena de análisis siempre operativa.
+
+---
+
 ### v1.5.0 — 2026-08-06
 
 #### 🐛 Bugs Corregidos
@@ -303,4 +318,5 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 7 | La burbuja no cambiaba de color en Android 13+ (causa raíz definitiva) | Reemplazo total del sistema de broadcasts `UPDATE_BUBBLE` por llamada directa `FloatingBubbleService.updateBubble(...)` via `companion object` | ✅ Resuelto en v1.4 |
 | 8 | El overlay se quedaba sin estado cuando el servicio arrancaba después del primer viaje | Se agregó un buffer de estado pendiente que se reaplica al crear el overlay | ✅ Resuelto en v1.5 |
 | 9 | El dashboard mostraba una app como activa aunque no estuviera instalada (por ejemplo DiDi) | Se valida la app real contra los paquetes instalados y se limpia el estado persistido si ya no corresponde | ✅ Resuelto en v1.5 |
+| 10 | La burbuja y el Dashboard quedaban en blanco/grafito al recibir ofertas en Uber Chile — el precio venía como `CLP7,604` y el regex solo reconocía `$`/`€`/`¥`, por lo que `detectedPrice` siempre era `null` | Se amplió `pricePattern` en `VerdiAccessibilityService.kt` para incluir códigos ISO (`CLP`, `COP`, `ARS`, `MXN`, `PEN`, `BRL`, `UYU`, `USD`, `EUR`) y se reforzó `parseFlexibleNumber` con `.trimEnd(',', '.')` | ✅ Resuelto en v1.6 |
 

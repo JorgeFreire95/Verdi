@@ -458,7 +458,7 @@ class VerdiAccessibilityService : AccessibilityService() {
             return null
         }
         
-        var t = raw.replace(Regex("[^0-9.,]"), "")
+        var t = raw.replace(Regex("[^0-9.,]"), "").trimEnd(',', '.')
         if (t.isBlank()) {
             Log.d(TAG, "    [parseNum] No digits found in '$raw'")
             return null
@@ -502,8 +502,14 @@ class VerdiAccessibilityService : AccessibilityService() {
         var detectedDistance: Double? = null
         var detectedTimeMins: Double? = null
 
-        // Enhanced regex patterns for multiple formats (CLP uses $, Cabify may use different formats)
-        val pricePattern = Pattern.compile("[$€¥]\\s*([0-9]+[.,]?[0-9]*[.,]?[0-9]*)|([0-9]+[.,]?[0-9]*[.,]?[0-9]*)\\s*[$€¥]", Pattern.CASE_INSENSITIVE)
+        // Enhanced regex patterns for multiple formats.
+        // Currency prefix covers: CLP (Uber Chile), COP, ARS, MXN, PEN, BRL and common symbols ($, €, ¥, £).
+        // Number part uses [0-9][0-9.,]* to greedily capture values like "7,604" or "1,234,567".
+        val currencySymbols = "CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£"
+        val pricePattern = Pattern.compile(
+            "(?:$currencySymbols)\\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\\s*(?:$currencySymbols)",
+            Pattern.CASE_INSENSITIVE
+        )
         val distPattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(km|KM|mi|mi\\.|Millas|millas)", Pattern.CASE_INSENSITIVE)
         val timePattern = Pattern.compile("([0-9]+)\\s*(min|mins|minutos|hr|h|hora|horas)", Pattern.CASE_INSENSITIVE)
 
