@@ -588,7 +588,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         Log.d(TAG, "   🚦 Decision: $decision | Hourly: \$${String.format("%.0f", hourlyRate)}/hr")
 
         // Update FloatingBubbleService directly (avoids broadcast delivery issues)
-        FloatingBubbleService.updateBubble(decision, price, fuelCost, netProfit, hourlyRate, currency)
+        FloatingBubbleService.updateBubble(applicationContext, decision, price, fuelCost, netProfit, hourlyRate, currency)
         Log.d(TAG, "   💰 FloatingBubbleService.updateBubble called - decision=$decision")
 
         // Push to Web client via VerdiPlugin

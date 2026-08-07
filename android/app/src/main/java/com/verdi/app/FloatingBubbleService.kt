@@ -21,6 +21,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import android.util.Log
 import java.util.Locale
 
@@ -30,10 +31,37 @@ class FloatingBubbleService : Service() {
         private const val TAG = "FloatingBubbleService"
         @Volatile var isRunning = false
         @Volatile private var instance: FloatingBubbleService? = null
+        @Volatile private var pendingState: BubbleState? = null
+
+        private data class BubbleState(
+            val decision: String,
+            val price: Double,
+            val fuel: Double,
+            val net: Double,
+            val hourly: Double,
+            val currency: String
+        )
 
         /** Direct call from VerdiAccessibilityService or VerdiPlugin — avoids broadcast delivery issues. */
-        fun updateBubble(decision: String, price: Double, fuel: Double, net: Double, hourly: Double, currency: String) {
-            instance?.updateBubbleState(decision, price, fuel, net, hourly, currency)
+        fun updateBubble(context: Context?, decision: String, price: Double, fuel: Double, net: Double, hourly: Double, currency: String) {
+            val state = BubbleState(decision, price, fuel, net, hourly, currency)
+            pendingState = state
+
+            if (instance != null) {
+                instance?.updateBubbleState(decision, price, fuel, net, hourly, currency)
+                pendingState = null
+                return
+            }
+
+            if (context != null) {
+                val intent = Intent(context, FloatingBubbleService::class.java)
+                try {
+                    ContextCompat.startForegroundService(context, intent)
+                    Log.d(TAG, "Started FloatingBubbleService to apply bubble state: $decision")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not start FloatingBubbleService", e)
+                }
+            }
         }
     }
 
@@ -77,6 +105,7 @@ class FloatingBubbleService : Service() {
         createPanelView()
         // Expose instance only after views are fully initialized
         instance = this
+        applyPendingBubbleState()
         Log.d(TAG, "FloatingBubbleService initialized successfully")
     }
 
@@ -326,6 +355,14 @@ class FloatingBubbleService : Service() {
             windowManager.updateViewLayout(panelLayout, panelParams)
         } else {
             panelLayout.visibility = View.GONE
+        }
+    }
+
+    private fun applyPendingBubbleState() {
+        pendingState?.let { state ->
+            Log.d(TAG, "Applying pending bubble state: ${state.decision}")
+            updateBubbleState(state.decision, state.price, state.fuel, state.net, state.hourly, state.currency)
+            pendingState = null
         }
     }
 

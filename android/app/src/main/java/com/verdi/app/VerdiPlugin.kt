@@ -65,11 +65,14 @@ class VerdiPlugin : Plugin() {
         // This covers the case where Cabify/Uber/DiDi was opened BEFORE Verdi's WebView loaded
         // (instance was null when the accessibility event fired, so the event was lost).
         val currentApp = VerdiAccessibilityService.activeApp
-        if (!currentApp.isNullOrBlank() && currentApp != "Ninguna" && currentApp != "Verdi (Pruebas)") {
-            Log.d(TAG, "load() → replaying active app state: $currentApp")
+        val normalizedApp = normalizeActiveApp(currentApp)
+        if (!normalizedApp.isNullOrBlank()) {
+            Log.d(TAG, "load() → replaying active app state: $normalizedApp")
             bridge.activity?.runOnUiThread {
-                notifyListeners("onAppConnected", JSObject().apply { put("appName", currentApp) }, true)
+                notifyListeners("onAppConnected", JSObject().apply { put("appName", normalizedApp) }, true)
             }
+        } else {
+            VerdiAccessibilityService.activeApp = "Ninguna"
         }
         // NOTE: We do NOT fall back to SharedPreferences here.
         // lastConnectedApp could be stale (e.g. Cabify was closed but still saved).
@@ -84,31 +87,40 @@ class VerdiPlugin : Plugin() {
         val accessibilityGranted = isAccessibilityServiceEnabled(context, VerdiAccessibilityService::class.java)
 
         val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
-        val lastConnectedApp = prefs.getString("lastConnectedApp", "")
+        val storedLastConnectedApp = prefs.getString("lastConnectedApp", "")
+        val validLastConnectedApp = if (isAppInstalledForDisplay(storedLastConnectedApp)) storedLastConnectedApp.orEmpty() else ""
+        if (validLastConnectedApp != storedLastConnectedApp) {
+            prefs.edit().putString("lastConnectedApp", validLastConnectedApp).apply()
+        }
 
         // Primary source: accessibility service static variable (real-time).
         val rawAccessibilityApp = VerdiAccessibilityService.activeApp
         val isExplicitlyNone = rawAccessibilityApp == "Ninguna"
-        val accessibilityActiveApp = rawAccessibilityApp
+        val accessibilityCandidate = rawAccessibilityApp
             .takeIf { !it.isNullOrBlank() && it != "Ninguna" && it != "Verdi (Pruebas)" }
-        
+        val accessibilityActiveApp = normalizeActiveApp(accessibilityCandidate)
+
         val currentActiveApp = accessibilityActiveApp
-            ?: if (!isExplicitlyNone) lastConnectedApp.orEmpty() else ""
+            ?: if (!isExplicitlyNone) validLastConnectedApp else ""
+
+        if (currentActiveApp.isNullOrBlank() && !isExplicitlyNone && !accessibilityCandidate.isNullOrBlank()) {
+            VerdiAccessibilityService.activeApp = "Ninguna"
+        }
 
         val uberInstalled = isAppInstalled(context, "com.ubercab.driver")
         val didiInstalled = isAppInstalled(context, "com.didichuxing.driver") || isAppInstalled(context, "com.didiglobal.driver")
         val cabifyInstalled = isAppInstalled(context, "com.cabify.driver") ||
             isAnyInstalledPackageContaining(context, "cabify")
 
-        Log.d(TAG, "DEBUG checkPermissions: VerdiAccessibilityService.activeApp=${VerdiAccessibilityService.activeApp} lastConnectedApp=$lastConnectedApp currentActiveApp=$currentActiveApp")
-
+        Log.d(TAG, "DEBUG checkPermissions: VerdiAccessibilityService.activeApp=${VerdiAccessibilityService.activeApp} lastConnectedApp=$validLastConnectedApp currentActiveApp=$currentActiveApp")
+        
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
         ret.put("accessibility", accessibilityGranted)
         ret.put("isServiceRunning", VerdiAccessibilityService.isServiceRunning)
         ret.put("isBubbleRunning", FloatingBubbleService.isRunning)
         ret.put("activeApp", currentActiveApp)
-        ret.put("lastConnectedApp", lastConnectedApp)
+        ret.put("lastConnectedApp", validLastConnectedApp)
         ret.put("uberInstalled", uberInstalled)
         ret.put("didiInstalled", didiInstalled)
         ret.put("cabifyInstalled", cabifyInstalled)
@@ -158,7 +170,7 @@ class VerdiPlugin : Plugin() {
         val currency  = call.getString("currency",  "CLP")      ?: "CLP"
 
         // Update FloatingBubbleService directly (avoids broadcast delivery issues)
-        FloatingBubbleService.updateBubble(decision, price, fuel, net, hourly, currency)
+        FloatingBubbleService.updateBubble(context, decision, price, fuel, net, hourly, currency)
         Log.d(TAG, "FloatingBubbleService.updateBubble called - Decision: $decision")
 
         val ret = JSObject()
@@ -196,7 +208,7 @@ class VerdiPlugin : Plugin() {
         val active = call.getBoolean("active", false) ?: false
         val intent = Intent(context, FloatingBubbleService::class.java)
         if (active) {
-            context.startService(intent)
+            ContextCompat.startForegroundService(context, intent)
         } else {
             context.stopService(intent)
         }
@@ -206,6 +218,21 @@ class VerdiPlugin : Plugin() {
     }
 
 
+
+    private fun normalizeActiveApp(appName: String?): String? {
+        if (appName.isNullOrBlank()) return null
+        if (appName == "Ninguna" || appName == "Verdi (Pruebas)") return null
+        return if (isAppInstalledForDisplay(appName)) appName else null
+    }
+
+    private fun isAppInstalledForDisplay(appName: String?): Boolean {
+        return when (appName?.trim()) {
+            "Uber" -> isAppInstalled(context, "com.ubercab.driver")
+            "DiDi" -> isAppInstalled(context, "com.didichuxing.driver") || isAppInstalled(context, "com.didiglobal.driver")
+            "Cabify" -> isAppInstalled(context, "com.cabify.driver") || isAnyInstalledPackageContaining(context, "cabify")
+            else -> false
+        }
+    }
 
     private fun isAccessibilityServiceEnabled(context: Context, service: Class<*>): Boolean {
         val expectedPackage = context.packageName

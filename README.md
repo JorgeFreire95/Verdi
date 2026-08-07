@@ -152,6 +152,21 @@ gantt
 - **Eliminación del BroadcastReceiver:** `FloatingBubbleService` ya no registra ni necesita un `BroadcastReceiver` para `UPDATE_BUBBLE`. Esto reduce el overhead de IPC, elimina dependencias de contexto Android y simplifica el ciclo de vida del servicio.
 - **Limpieza de `instance` en `onDestroy`:** Al destruirse el servicio, `instance` se pone a `null` antes de cualquier otra operación, evitando llamadas a vistas ya removidas del `WindowManager`.
 
+### v1.5.0 — 2026-08-06
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt`, `VerdiAccessibilityService.kt`, `VerdiPlugin.kt` | El overlay podía quedarse sin actualizar el estado del viaje si el servicio arrancaba después de la primera captura, dejando la burbuja en grafito y sin reflejar la información del panel. | Se implementó un buffer de estado pendiente en `FloatingBubbleService` y se aplica al crear el overlay, de modo que el primer viaje se conserva aunque el servicio se inicie más tarde. |
+| 2 | `VerdiPlugin.kt` | Al reabrir la app tras dejarla cerrada mucho tiempo, podía aparecer `DiDi` como última app activa aunque esa app no estuviera instalada. | Se validó el estado contra la instalación real de Uber/DiDi/Cabify antes de mostrarlo en UI y se limpió el valor persistido en `SharedPreferences` cuando ya no corresponde a una app instalada. |
+| 3 | `VerdiPlugin.kt` | El arranque del servicio de burbuja era inestable en algunos dispositivos Android al iniciarlo con `startService`. | Se reemplazó por `ContextCompat.startForegroundService(...)` para garantizar un arranque más robusto del overlay en segundo plano. |
+
+#### ✨ Mejoras
+- **Estado de overlay robusto:** el panel y la burbuja conservan el último estado del viaje aunque la app haya sido cerrada y reabierta.
+- **Limpieza de estados obsoletos:** la app ya no muestra apps de conductor que no están instaladas, evitando falsos activos en el dashboard.
+- **Mayor estabilidad en Android 13+:** el arranque del overlay ahora sigue el flujo recomendado para servicios en primer plano.
+
 ---
 
 ### v1.3.0 — Sprint 5 (2026-07-26)
@@ -286,4 +301,6 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 5 | La burbuja de servicio no cambiaba de color al detectar rentabilidades (intento previo) | Se reasignó el fondo y se invalidó la vista en el UI thread de `FloatingBubbleService.kt` | ✅ Resuelto parcialmente en v1.3 |
 | 6 | El Wizard de instrucciones se ocultaba inmediatamente en el inicio de la app | Se modificó `shouldShow()` para evaluar permisos activos en vez de flags de almacenamiento local | ✅ Resuelto |
 | 7 | La burbuja no cambiaba de color en Android 13+ (causa raíz definitiva) | Reemplazo total del sistema de broadcasts `UPDATE_BUBBLE` por llamada directa `FloatingBubbleService.updateBubble(...)` via `companion object` | ✅ Resuelto en v1.4 |
+| 8 | El overlay se quedaba sin estado cuando el servicio arrancaba después del primer viaje | Se agregó un buffer de estado pendiente que se reaplica al crear el overlay | ✅ Resuelto en v1.5 |
+| 9 | El dashboard mostraba una app como activa aunque no estuviera instalada (por ejemplo DiDi) | Se valida la app real contra los paquetes instalados y se limpia el estado persistido si ya no corresponde | ✅ Resuelto en v1.5 |
 
