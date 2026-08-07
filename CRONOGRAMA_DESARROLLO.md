@@ -42,6 +42,11 @@ gantt
     "Reemplazo de Broadcasts por Llamada Directa (companion object)" :done, s6a, 2026-08-01, 2026-08-01
     "Fix Race Condition en Actualización de Color (capture-before-post)" :done, s6b, 2026-08-01, 2026-08-01
     "Limpieza de instance en onDestroy y remoción de BroadcastReceiver" :done, s6c, 2026-08-01, 2026-08-01
+
+    section Sprint 7: Estabilización de Overlay y Detección de Apps
+    "Buffer de estado pendiente para el overlay" :done, s7a, 2026-08-06, 2026-08-06
+    "Validación de apps activas contra paquetes instalados" :done, s7b, 2026-08-06, 2026-08-06
+    "Arranque robusto del overlay con startForegroundService" :done, s7c, 2026-08-06, 2026-08-06
 ```
 
 ---
@@ -74,6 +79,15 @@ gantt
   * Habilitación de la cola de eventos en background con `retainUntilConsumed = true`.
   * Implementación de un debounce de 4 segundos para evitar falsos resets en transiciones rápidas de apps.
 
+### Sprint 5: Refactor, UI y Soporte (20 Jul - 30 Jul)
+* **Objetivo:** Optimizar la experiencia de usuario (UX), simplificar permisos y proveer soporte integrado.
+* **Hitos alcanzados:**
+  * Eliminación de permisos intrusivos de Ubicación (GPS) y Estadísticas de Uso.
+  * Snap magnético horizontal de la burbuja al borde de la pantalla (`x=0`).
+  * Lanzador nativo `appDetails` para permitir que el conductor desbloquee **Ajustes Restringidos (Botón Gris)**.
+  * Incorporación de la pestaña interactiva **Ayuda** con FAQs y rutas paso a paso por marca de teléfono (Xiaomi, Samsung, Realme, Motorola).
+  * Solución definitiva de redibujado de color de la burbuja (mediante WindowManager layout update y mutación del drawable) y visualización del Wizard.
+
 ### Sprint 6: Corrección Definitiva del Color de Burbuja (01 Ago)
 * **Objetivo:** Resolver de forma definitiva y robusta la falta de cambio de color en la burbuja flotante nativa, identificando la causa raíz en el sistema de comunicación entre servicios.
 * **Hitos alcanzados:**
@@ -83,11 +97,9 @@ gantt
   * `instance` ahora se asigna al final de `onCreate()` (post-inicialización de vistas) y se limpia a `null` en `onDestroy()`.
   * Eliminación completa del `BroadcastReceiver`, las `IntentFilter` y las importaciones `@SuppressLint` relacionadas de `FloatingBubbleService`.
 
-### Sprint 5: Refactor, UI y Soporte (20 Jul - 30 Jul)
-* **Objetivo:** Optimizar la experiencia de usuario (UX), simplificar permisos y proveer soporte integrado.
+### Sprint 7: Estabilización de Overlay y Detección de Apps (06 Ago)
+* **Objetivo:** Asegurar que el overlay conserve el último estado del viaje y que la UI no muestre como activa una app de conductor que no está instalada.
 * **Hitos alcanzados:**
-  * Eliminación de permisos intrusivos de Ubicación (GPS) y Estadísticas de Uso.
-  * Snap magnético horizontal de la burbuja al borde de la pantalla (`x=0`).
-  * Lanzador nativo `appDetails` para permitir que el conductor desbloquee **Ajustes Restringidos (Botón Gris)**.
-  * Incorporación de la pestaña interactiva **Ayuda** con FAQs y rutas paso a paso por marca de teléfono (Xiaomi, Samsung, Realme, Motorola).
-  * Solución definitiva de redibujado de color de la burbuja (mediante WindowManager layout update y mutación del drawable) y visualización del Wizard.
+  * Implementación de un **buffer de estado pendiente** en `FloatingBubbleService` para conservar el primer viaje aunque el overlay se inicie más tarde.
+  * Validación de la app activa contra los paquetes reales instalados de Uber, DiDi y Cabify, evitando falsos estados de conexión.
+  * Arranque más robusto del overlay en Android mediante `ContextCompat.startForegroundService(...)`.
