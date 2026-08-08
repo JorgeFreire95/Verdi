@@ -47,6 +47,11 @@ gantt
     "Buffer de estado pendiente para el overlay" :done, s7a, 2026-08-06, 2026-08-06
     "Validación de apps activas contra paquetes instalados" :done, s7b, 2026-08-06, 2026-08-06
     "Arranque robusto del overlay con startForegroundService" :done, s7c, 2026-08-06, 2026-08-06
+
+    section Sprint 8: Config Sync y Estabilidad del WebView
+    "Fix race condition config (apply→commit en updateConfig)" :done, s8a, 2026-08-08, 2026-08-08
+    "Guard de concurrencia en checkAndroidPermissions (freeze fix)" :done, s8b, 2026-08-08, 2026-08-08
+    "Persistencia de resultado de viaje extendida 6s→30s" :done, s8c, 2026-08-08, 2026-08-08
 ```
 
 ---
@@ -103,3 +108,10 @@ gantt
   * Implementación de un **buffer de estado pendiente** en `FloatingBubbleService` para conservar el primer viaje aunque el overlay se inicie más tarde.
   * Validación de la app activa contra los paquetes reales instalados de Uber, DiDi y Cabify, evitando falsos estados de conexión.
   * Arranque más robusto del overlay en Android mediante `ContextCompat.startForegroundService(...)`.
+
+### Sprint 8: Config Sync y Estabilidad del WebView (08 Ago)
+* **Objetivo:** Corregir que los cambios de configuración (ganancia mínima, precio combustible, etc.) no se aplicaran correctamente al motor de decisión, y resolver el freeze del WebView por llamadas concurrentes al plugin nativo.
+* **Hitos alcanzados:**
+  * **Fix race condition en `updateConfig`:** `editor.apply()` (asíncrono) reemplazado por `editor.commit()` (síncrono) en `VerdiPlugin.kt` para garantizar que los datos estén escritos en `SharedPreferences` antes de enviar el broadcast `CONFIG_UPDATED` al `VerdiAccessibilityService`. Esto causaba que el motor de decisión siempre leía los valores antiguos de configuración, ignorando la ganancia mínima configurada por el conductor.
+  * **Guard de concurrencia en `checkAndroidPermissions`:** Añadido el flag `_checkingPermissions` en `main.js` para que solo corra una instancia simultánea de la función. El `setInterval` de 2 segundos apilaba llamadas concurrentes cuando el plugin nativo tardaba más de 2s, degradando y congelando el WebView.
+  * **Persistencia extendida del resultado del viaje:** El semáforo y los datos del viaje ahora permanecen visibles **30 segundos** (antes eran 6), evitando que el dashboard vuelva a grafito antes de que el conductor pueda leer el análisis.

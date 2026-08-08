@@ -152,6 +152,23 @@ gantt
 - **Eliminación del BroadcastReceiver:** `FloatingBubbleService` ya no registra ni necesita un `BroadcastReceiver` para `UPDATE_BUBBLE`. Esto reduce el overhead de IPC, elimina dependencias de contexto Android y simplifica el ciclo de vida del servicio.
 - **Limpieza de `instance` en `onDestroy`:** Al destruirse el servicio, `instance` se pone a `null` antes de cualquier otra operación, evitando llamadas a vistas ya removidas del `WindowManager`.
 
+### v1.7.0 — Sprint 8 (2026-08-08)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiPlugin.kt` | La configuración guardada por el conductor (ganancia mínima, precio de combustible, etc.) no se aplicaba al motor de cálculo nativo. `editor.apply()` escribe `SharedPreferences` de forma **asíncrona**, y el broadcast `CONFIG_UPDATED` se enviaba antes de que los datos terminaran de escribirse. Al recibir el broadcast, `VerdiAccessibilityService.loadConfig()` leía los valores **anteriores**, ignorando los cambios del conductor. | Reemplazado `editor.apply()` por `editor.commit()` (síncrono). Garantiza que los datos estén completamente persistidos antes de notificar al servicio. |
+| 2 | `main.js` | Tras unos minutos de uso, la app se "pegaba" y dejaba de reaccionar. `checkAndroidPermissions` se llama cada 2 segundos via `setInterval`. Si el plugin nativo tardaba más de 2 segundos en responder, se apilaban múltiples llamadas concurrentes, degradando y congelando el WebView. | Añadido el flag `_checkingPermissions`: si ya hay una llamada en curso, la siguiente se descarta hasta que termine la anterior. |
+| 3 | `main.js` | El resultado del viaje (semáforo verde/amarillo/rojo y datos del análisis) desaparecía de pantalla a los **6 segundos**, volviendo al estado grafito antes de que el conductor pudiera leer el análisis. | El umbral `timeSinceCapture` aumentado de `6 000 ms` a `30 000 ms` en los 3 puntos de la UI donde se aplica, manteniendo el resultado visible durante 30 segundos. |
+
+#### ✨ Mejoras
+- **Configuración inmediata:** Los cambios de parámetros en la pestaña de Ajustes ahora se propagan al motor de decisión en tiempo real, sin necesidad de reiniciar el servicio.
+- **App más estable en sesiones largas:** La eliminación de llamadas concurrentes al plugin nativo mejora la fluidez del dashboard durante turnos prolongados.
+- **Más tiempo para analizar:** El conductor tiene 30 segundos para leer el análisis de cada viaje antes de que el panel vuelva al estado de espera.
+
+---
+
 ### v1.6.0 — 2026-08-06
 
 #### 🐛 Bugs Corregidos
@@ -319,4 +336,7 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 8 | El overlay se quedaba sin estado cuando el servicio arrancaba después del primer viaje | Se agregó un buffer de estado pendiente que se reaplica al crear el overlay | ✅ Resuelto en v1.5 |
 | 9 | El dashboard mostraba una app como activa aunque no estuviera instalada (por ejemplo DiDi) | Se valida la app real contra los paquetes instalados y se limpia el estado persistido si ya no corresponde | ✅ Resuelto en v1.5 |
 | 10 | La burbuja y el Dashboard quedaban en blanco/grafito al recibir ofertas en Uber Chile — el precio venía como `CLP7,604` y el regex solo reconocía `$`/`€`/`¥`, por lo que `detectedPrice` siempre era `null` | Se amplió `pricePattern` en `VerdiAccessibilityService.kt` para incluir códigos ISO (`CLP`, `COP`, `ARS`, `MXN`, `PEN`, `BRL`, `UYU`, `USD`, `EUR`) y se reforzó `parseFlexibleNumber` con `.trimEnd(',', '.')` | ✅ Resuelto en v1.6 |
+| 11 | La configuración de ganancia mínima no se aplicaba al motor de cálculo — `editor.apply()` era asíncrono y el broadcast `CONFIG_UPDATED` llegaba al servicio antes de que los nuevos valores estuvieran escritos, causando que siempre se usaran los valores anteriores y el semáforo siempre mostrara rojo | Reemplazado `editor.apply()` por `editor.commit()` en `VerdiPlugin.kt` | ✅ Resuelto en v1.7 |
+| 12 | Después de varios minutos de uso la app se "pegaba" y dejaba de responder — `checkAndroidPermissions` (llamado cada 2s via `setInterval`) apilaba llamadas concurrentes cuando el plugin tardaba más de 2s, saturando el WebView | Añadido el flag `_checkingPermissions` en `main.js` para descartar llamadas solapadas | ✅ Resuelto en v1.7 |
+| 13 | El resultado del viaje (semáforo de color) desaparecía a los 6 segundos, volviendo a grafito antes de que el conductor pudiera leer el análisis | Umbral `timeSinceCapture` aumentado de 6 000 ms a 30 000 ms en `main.js` | ✅ Resuelto en v1.7 |
 

@@ -394,8 +394,14 @@ async function syncConfigToNative() {
   }
 }
 
+// Guard to prevent overlapping concurrent checkAndroidPermissions calls.
+// If the plugin takes longer than the 2s setInterval, calls would pile up and freeze the app.
+let _checkingPermissions = false;
+
 // Check native Android permissions
 async function checkAndroidPermissions() {
+  if (_checkingPermissions) return;
+  _checkingPermissions = true;
   try {
     console.log("checkAndroidPermissions started");
     const res = await VerdiPlugin.checkPermissions();
@@ -464,7 +470,7 @@ async function checkAndroidPermissions() {
 
     if (isServiceActive) {
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 6000) {
+      if (timeSinceCapture > 30000) {
         const currentApp = res.activeApp;
         if (currentApp && currentApp !== 'Ninguna' && currentApp !== 'Desconectado' && currentApp !== 'Verdi (Pruebas)') {
           elements.liveStatusTitle.innerText = `Conectado a ${currentApp}`;
@@ -479,7 +485,7 @@ async function checkAndroidPermissions() {
       }
     } else {
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 6000) {
+      if (timeSinceCapture > 30000) {
         elements.liveStatusTitle.innerText = `Servicio Inactivo`;
         elements.liveStatusDesc.innerText = `Por favor, activa los permisos de lectura de pantalla y burbuja flotante para iniciar.`;
         elements.liveTrafficLight.className = 'traffic-light-preview graphite';
@@ -503,6 +509,8 @@ async function checkAndroidPermissions() {
     }
   } catch (err) {
     console.error('Error in checkAndroidPermissions:', err);
+  } finally {
+    _checkingPermissions = false;
   }
 }
 
@@ -875,7 +883,7 @@ function setupNativeListeners() {
       }, 200);
       
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 6000) {
+      if (timeSinceCapture > 30000) {
         if (appName !== 'Ninguna' && appName !== 'Desconectado' && appName !== 'Verdi (Pruebas)') {
           elements.liveStatusTitle.innerText = `Conectado a ${appName}`;
           elements.liveStatusDesc.innerText = `Esperando viaje... Monitoreando pantalla de forma activa.`;

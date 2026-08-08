@@ -192,7 +192,9 @@ class VerdiPlugin : Plugin() {
         editor.putFloat("vehicleEfficiency", call.getFloat("vehicleEfficiency", 12f) ?: 12f)
         editor.putFloat("minHourlyEarnings", call.getFloat("minHourlyEarnings", 15000f) ?: 15000f)
         editor.putFloat("minPerDistance", call.getFloat("minPerDistance", 350f) ?: 350f)
-        editor.apply()
+        // commit() is synchronous — guarantees data is persisted before CONFIG_UPDATED is broadcast,
+        // preventing loadConfig() in VerdiAccessibilityService from reading stale values.
+        editor.commit()
 
         // Notify active services to update configurations immediately
         val configIntent = Intent("com.verdi.app.CONFIG_UPDATED")
