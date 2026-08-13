@@ -52,6 +52,11 @@ gantt
     "Fix race condition config (apply→commit en updateConfig)" :done, s8a, 2026-08-08, 2026-08-08
     "Guard de concurrencia en checkAndroidPermissions (freeze fix)" :done, s8b, 2026-08-08, 2026-08-08
     "Persistencia de resultado de viaje extendida 6s→30s" :done, s8c, 2026-08-08, 2026-08-08
+
+    section Sprint 9: Semáforo y Reset Automático de UI
+    "Deduplicación de eventos onTripCaptured repetidos" :done, s9a, 2026-08-12, 2026-08-12
+    "Reset automático a grafito con setTimeout 8s" :done, s9b, 2026-08-12, 2026-08-12
+    "Centralización de resetLiveUIToIdle() y reducción umbral 30s→8s" :done, s9c, 2026-08-12, 2026-08-12
 ```
 
 ---
@@ -115,3 +120,11 @@ gantt
   * **Fix race condition en `updateConfig`:** `editor.apply()` (asíncrono) reemplazado por `editor.commit()` (síncrono) en `VerdiPlugin.kt` para garantizar que los datos estén escritos en `SharedPreferences` antes de enviar el broadcast `CONFIG_UPDATED` al `VerdiAccessibilityService`. Esto causaba que el motor de decisión siempre leía los valores antiguos de configuración, ignorando la ganancia mínima configurada por el conductor.
   * **Guard de concurrencia en `checkAndroidPermissions`:** Añadido el flag `_checkingPermissions` en `main.js` para que solo corra una instancia simultánea de la función. El `setInterval` de 2 segundos apilaba llamadas concurrentes cuando el plugin nativo tardaba más de 2s, degradando y congelando el WebView.
   * **Persistencia extendida del resultado del viaje:** El semáforo y los datos del viaje ahora permanecen visibles **30 segundos** (antes eran 6), evitando que el dashboard vuelva a grafito antes de que el conductor pueda leer el análisis.
+
+### Sprint 9: Semáforo y Reset Automático de UI (12 Ago)
+* **Objetivo:** Resolver el comportamiento del semáforo que quedaba pegado en un color después de recibir un viaje y no retornaba al estado negro/grafito.
+* **Hitos alcanzados:**
+  * **Deduplicación de `onTripCaptured`:** El servicio nativo puede emitir el mismo viaje múltiples veces en sucesión rápida. Cada disparo renovaba `lastCapturedTime`, haciendo que la condición de reset nunca se cumpliera. Se implementó una clave de deduplicación `price-distance-timeMins` que descarta eventos idénticos dentro de 10 segundos sin alterar el estado visual.
+  * **Reset automático con `setTimeout` de 8 segundos:** Se agregó un timer local dentro de `onTripCaptured` que resetea la UI al estado grafito exactamente 8 segundos después de mostrar el análisis, de forma determinista e independiente del ciclo de polling.
+  * **Reducción del umbral de polling de 30 s a 8 s:** El umbral `timeSinceCapture` del `checkAndroidPermissions` (3 puntos) se redujo de 30 000 ms a 8 000 ms para alinearlo con el nuevo timer automático y actuar como respaldo.
+  * **Función `resetLiveUIToIdle()` centralizada:** Se extrajo y unificó la lógica de reset de UI (semáforo, título, descripción, métricas) que estaba duplicada en 3 lugares, usando `STATE.lastActiveApp` para mostrar el nombre correcto de la app de conductor activa.
