@@ -94,9 +94,14 @@ gantt
     Bridge Capacitor & SharedPreferences :done, s3, 2026-06-15, 6d
     Foreground Service & Bubble Overlay  :done, s4, after s3, 8d
     section Sprint 3: Integración Reactiva
-    Accessibility Service & Regex Parser :active, s5, 2026-06-24, 7d
-    Fix detección Cabify Driver          :active, s6, 2026-06-24, 3d
-    Pruebas e Integración de < 500ms     :s7, after s5, 5d
+    Accessibility Service & Regex Parser :done, s5, 2026-06-24, 7d
+    Fix detección Cabify Driver          :done, s6, 2026-06-24, 3d
+    Pruebas e Integración de < 500ms     :done, s7, after s5, 5d
+    section Sprint 4-8: Estabilización
+    Registro plugin, debounce estados    :done, s8, 2026-07-04, 42d
+    section Sprint 9: Corrección de semáforo y reset UI
+    Fix deduplicación onTripCaptured     :done, s9, 2026-08-12, 1d
+    Reset automático 8s a grafito        :done, s10, 2026-08-12, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -231,9 +236,24 @@ gantt
   - **Apagado Sencillo y Directo:** Se integró un botón rojo `"APAGAR SEMÁFORO"` en el panel detallado que apaga el servicio directamente (`stopSelf()`).
   - **Sincronización Web-Nativa:** El Dashboard de control web detecta la terminación del proceso nativo de la burbuja y actualiza instantáneamente el interruptor a "Iniciar".
 
+### v1.8.0 — Sprint 9 (2026-08-12)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `main.js` | El semáforo quedaba pegado en un estado de color (rojo, verde o amarillo) indefinidamente después de recibir un viaje. El servicio nativo puede emitir el evento `onTripCaptured` múltiples veces con los mismos datos, lo que reiniciaba `lastCapturedTime` en cada disparo y hacía que la condición de reset jamás se cumpliera. | Se añadió un mecanismo de **deduplicación por clave de viaje** (`price-distance-timeMins`). Si el mismo viaje se emite nuevamente dentro de 10 segundos, el evento se ignora sin reiniciar el timer. |
+| 2 | `main.js` | El semáforo nunca volvía a negro (grafito) tras mostrar el análisis de un viaje: el umbral de reset era `30 000 ms` (30 segundos) en el polling, pero dado que el servicio nativo re-disparaba el mismo viaje constantemente, ese umbral nunca se alcanzaba. | Se agregó un `setTimeout` de **8 segundos** directamente dentro de `onTripCaptured` que resetea la UI al estado grafito de forma determinista, independientemente del polling. El umbral del polling también se redujo de `30 000 ms` a `8 000 ms` en los 3 puntos donde se aplica. |
+| 3 | `main.js` | La lógica de reset de UI estaba duplicada en 3 lugares con variaciones sutiles, lo que dificultaba mantener el estado correcto (nombre de la app conectada, métricas visibles, emoji). | Se extrajo una función `resetLiveUIToIdle()` reutilizable que centraliza el reseteo del semáforo, el texto de estado y los indicadores de métricas, usando `STATE.lastActiveApp` para mostrar el nombre correcto de la app conectada. |
+
+#### ✨ Mejoras
+- **Reset automático garantizado:** El análisis de cada viaje desaparece exactamente a los 8 segundos mediante un timer propio, sin depender del ciclo de polling de 2 segundos.
+- **Deduplicación de eventos nativos:** Viajes idénticos emitidos en rápida sucesión ya no acumulan contadores ni reinician el estado visual de forma indebida.
+- **Estado de app conectada preservado en el reset:** Al volver a grafito, el panel muestra correctamente `"Conectado a [App]"` si la app de conductor sigue activa, en lugar de un mensaje genérico.
+
 ---
 
-## 🚀 Funcionalidades Clave
+
 
 * **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, extrayendo la tarifa, distancia y tiempo del viaje.
 * **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando si cumple con tus objetivos de ingresos por distancia. Funciona de manera 100% local (sin depender de conexión a internet).
@@ -339,4 +359,7 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 11 | La configuración de ganancia mínima no se aplicaba al motor de cálculo — `editor.apply()` era asíncrono y el broadcast `CONFIG_UPDATED` llegaba al servicio antes de que los nuevos valores estuvieran escritos, causando que siempre se usaran los valores anteriores y el semáforo siempre mostrara rojo | Reemplazado `editor.apply()` por `editor.commit()` en `VerdiPlugin.kt` | ✅ Resuelto en v1.7 |
 | 12 | Después de varios minutos de uso la app se "pegaba" y dejaba de responder — `checkAndroidPermissions` (llamado cada 2s via `setInterval`) apilaba llamadas concurrentes cuando el plugin tardaba más de 2s, saturando el WebView | Añadido el flag `_checkingPermissions` en `main.js` para descartar llamadas solapadas | ✅ Resuelto en v1.7 |
 | 13 | El resultado del viaje (semáforo de color) desaparecía a los 6 segundos, volviendo a grafito antes de que el conductor pudiera leer el análisis | Umbral `timeSinceCapture` aumentado de 6 000 ms a 30 000 ms en `main.js` | ✅ Resuelto en v1.7 |
+| 14 | El semáforo quedaba pegado en rojo (o cualquier color) indefinidamente porque el servicio nativo re-disparaba el mismo viaje varias veces, renovando `lastCapturedTime` en cada disparo y evitando que se cumpliera la condición de reset a grafito | Deduplicación por clave `price-distance-timeMins` en `main.js`; eventos idénticos dentro de 10 s se descartan sin reiniciar el timer | ✅ Resuelto en v1.8 |
+| 15 | El semáforo nunca volvía a negro/grafito después de mostrar un viaje — el umbral de 30 s en el polling nunca se alcanzaba por la deduplicación anterior, y la UI quedaba congelada en el color del último análisis | `onTripCaptured` ahora arma un `setTimeout` de 8 s que resetea la UI de forma determinista; umbral del polling reducido de 30 000 ms a 8 000 ms en los 3 puntos donde se aplica | ✅ Resuelto en v1.8 |
+| 16 | Al resetear la UI al estado grafito, el panel mostraba "Buscando Conexión…" aunque la app de conductor siguiera activa en primer plano, porque la lógica de reset estaba duplicada con textos diferentes en cada lugar | Lógica centralizada en función `resetLiveUIToIdle()` que usa `STATE.lastActiveApp` para mostrar el mensaje correcto | ✅ Resuelto en v1.8 |
 

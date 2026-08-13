@@ -470,22 +470,12 @@ async function checkAndroidPermissions() {
 
     if (isServiceActive) {
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 30000) {
-        const currentApp = res.activeApp;
-        if (currentApp && currentApp !== 'Ninguna' && currentApp !== 'Desconectado' && currentApp !== 'Verdi (Pruebas)') {
-          elements.liveStatusTitle.innerText = `Conectado a ${currentApp}`;
-          elements.liveStatusDesc.innerText = `Esperando viaje... Monitoreando pantalla de forma activa.`;
-        } else {
-          elements.liveStatusTitle.innerText = `Buscando Conexión...`;
-          elements.liveStatusDesc.innerText = `Esperando la apertura de Uber, DiDi o Cabify en primer plano.`;
-        }
-        elements.liveTrafficLight.className = 'traffic-light-preview graphite';
-        elements.liveMetricsContainer.style.display = 'none';
-        elements.liveBubbleText.innerText = '🔘';
+      if (timeSinceCapture > 8000) {
+        resetLiveUIToIdle();
       }
     } else {
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 30000) {
+      if (timeSinceCapture > 8000) {
         elements.liveStatusTitle.innerText = `Servicio Inactivo`;
         elements.liveStatusDesc.innerText = `Por favor, activa los permisos de lectura de pantalla y burbuja flotante para iniciar.`;
         elements.liveTrafficLight.className = 'traffic-light-preview graphite';
@@ -780,12 +770,45 @@ function renderHistory() {
 }
 
 // Handle native callbacks from screen readers
+function resetLiveUIToIdle() {
+  const currentApp = STATE.lastActiveApp;
+  if (currentApp && currentApp !== 'Ninguna' && currentApp !== 'Desconectado') {
+    elements.liveStatusTitle.innerText = `Conectado a ${currentApp}`;
+    elements.liveStatusDesc.innerText = `Esperando viaje... Monitoreando pantalla de forma activa.`;
+  } else {
+    elements.liveStatusTitle.innerText = `Buscando Conexión...`;
+    elements.liveStatusDesc.innerText = `Esperando la apertura de Uber, DiDi o Cabify en primer plano.`;
+  }
+  elements.liveTrafficLight.className = 'traffic-light-preview graphite';
+  elements.liveMetricsContainer.style.display = 'none';
+  elements.liveBubbleText.innerText = '🔘';
+}
+
 function setupNativeListeners() {
+  // Timer that resets the live UI back to graphite after showing a trip result
+  let tripDisplayTimer = null;
+
+  // Dedup key: prevents reprocessing the same trip data fired repeatedly by the service
+  let lastTripKey = null;
+
   try {
     // Listen for trips captured by background OCR/Accessibility service
     VerdiPlugin.addListener('onTripCaptured', (trip) => {
+      // Deduplicate: if native service re-fires the same trip, skip processing
+      const tripKey = `${trip.price}-${trip.distance}-${trip.timeMins}`;
+      if (tripKey === lastTripKey) return;
+      lastTripKey = tripKey;
+      // Clear dedup key after 10s so a genuinely identical trip can be captured again
+      setTimeout(() => { if (lastTripKey === tripKey) lastTripKey = null; }, 10000);
+
       // Record capture time to prevent immediate override by connection status
       STATE.lastCapturedTime = Date.now();
+
+      // Cancel any pending idle reset from a previous trip
+      if (tripDisplayTimer) {
+        clearTimeout(tripDisplayTimer);
+        tripDisplayTimer = null;
+      }
 
       // trip keys: price, distance, timeMins
       const results = calculateProfitability(trip.price, trip.distance, trip.timeMins);
@@ -812,6 +835,7 @@ function setupNativeListeners() {
         title = '🟡 Oferta Marginal';
         desc = `Viaje aceptable. Margen ajustado. Ganancia horaria estimada: ${formatCurrency(results.hourlyRate)}/hr.`;
         emoji = '🟡';
+        STATE.stats.yellow = (STATE.stats.yellow || 0) + 1;
       } else if (results.decision === 'RED') {
         borderClass = 'red';
         title = '🔴 Oferta NO Recomendable';
@@ -825,6 +849,13 @@ function setupNativeListeners() {
       elements.liveStatusDesc.innerText = desc;
       elements.liveBubbleText.innerText = emoji;
       elements.liveTrafficLight.className = `traffic-light-preview ${borderClass}`;
+
+      // Auto-reset UI to idle after 8 seconds
+      tripDisplayTimer = setTimeout(() => {
+        tripDisplayTimer = null;
+        STATE.lastCapturedTime = 0;
+        resetLiveUIToIdle();
+      }, 8000);
 
       // Notify native overlay bubble of the new color/state
       VerdiPlugin.updateBubbleState({
@@ -863,6 +894,7 @@ function setupNativeListeners() {
       
       // FORCE UPDATE: immediately update UI
       console.log('[onAppConnected] 🚀 FORCING UI UPDATE for:', appName);
+      STATE.lastActiveApp = appName;
       updateAppConnectionUI(appName);
       
       // Lock UI: make sure it stays updated for 10 seconds
@@ -883,17 +915,8 @@ function setupNativeListeners() {
       }, 200);
       
       const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 30000) {
-        if (appName !== 'Ninguna' && appName !== 'Desconectado' && appName !== 'Verdi (Pruebas)') {
-          elements.liveStatusTitle.innerText = `Conectado a ${appName}`;
-          elements.liveStatusDesc.innerText = `Esperando viaje... Monitoreando pantalla de forma activa.`;
-        } else {
-          elements.liveStatusTitle.innerText = `Buscando Conexión...`;
-          elements.liveStatusDesc.innerText = `Esperando la apertura de Uber, DiDi o Cabify en primer plano.`;
-        }
-        elements.liveTrafficLight.className = 'traffic-light-preview graphite';
-        elements.liveMetricsContainer.style.display = 'none';
-        elements.liveBubbleText.innerText = '🔘';
+      if (timeSinceCapture > 8000) {
+        resetLiveUIToIdle();
       }
     });
   } catch(err) {
