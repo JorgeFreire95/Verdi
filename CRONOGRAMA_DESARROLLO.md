@@ -62,6 +62,8 @@ gantt
     "Reset final del overlay a GRAPHITE y limpieza de estado stale" :done, s10a, 2026-08-15, 2026-08-15
     "Limpieza de deduplicación y reset al cambiar de app / Ninguna" :done, s10b, 2026-08-15, 2026-08-15
     "Eliminación de tasa horaria del detalle del overlay" :done, s10c, 2026-08-15, 2026-08-15
+    "Persistencia del estado off del overlay y bloqueo de reactivación" :done, s10d, 2026-08-15, 2026-08-15
+    "Ignorar updates de viaje cuando el bubble está deshabilitado" :done, s10e, 2026-08-15, 2026-08-15
 ```
 ---
 
@@ -134,8 +136,10 @@ gantt
   * **Función `resetLiveUIToIdle()` centralizada:** Se extrajo y unificó la lógica de reset de UI (semáforo, título, descripción, métricas) que estaba duplicada en 3 lugares, usando `STATE.lastActiveApp` para mostrar el nombre correcto de la app de conductor activa.
 
 ### Sprint 10: Estabilidad Final del Overlay (15 Ago)
-* **Objetivo:** Eliminar los estados stale del overlay y dejar el detalle visual más claro para la decisión del conductor.
+* **Objetivo:** Eliminar los estados stale del overlay, reforzar el apagado manual del semáforo y dejar el detalle visual más claro para la decisión del conductor.
 * **Hitos alcanzados:**
   * **Reset final a `GRAPHITE` y limpieza de estado stale:** Se reforzó el reset del overlay nativo desde `resetLiveUIToIdle()`, y se limpia el estado de viaje cuando cambia de app o cuando la app pasa a `Ninguna` para evitar que el semáforo permanezca en rojo/verde.
   * **Limpieza de deduplicación ante viajes nuevos:** La clave `lastTripKey` se borra al terminar el timer y en cada cambio de app, permitiendo que un viaje nuevo vuelva a evaluarse sin quedar bloqueado.
   * **Detalle del overlay más legible:** Se elimina la línea de `Tasa Horaria` del panel expandido para mantener el foco en gasto y ganancia neta, reduciendo ruido visual y mejorando la lectura rápida.
+  * **Estado off persistente del overlay:** Se guarda el estado `bubble_enabled` en `SharedPreferences` y se evita que el servicio vuelva a activarse de forma espontánea tras apretar `Detener` o `Apagar semáforo`.
+  * **Ignorar updates mientras está deshabilitado:** El servicio omite `updateBubble()` cuando el bubble está apagado manualmente, evitando la reactivación por eventos nativos o viajes en segundo plano.
