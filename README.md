@@ -236,7 +236,7 @@ gantt
   - **Apagado Sencillo y Directo:** Se integró un botón rojo `"APAGAR SEMÁFORO"` en el panel detallado que apaga el servicio directamente (`stopSelf()`).
   - **Sincronización Web-Nativa:** El Dashboard de control web detecta la terminación del proceso nativo de la burbuja y actualiza instantáneamente el interruptor a "Iniciar".
 
-### v1.9.0 — 2026-08-15
+### v1.10.0 — 2026-08-15
 
 #### 🐛 Bugs Corregidos
 
@@ -245,8 +245,10 @@ gantt
 | 1 | `main.js` | La burbuja flotante y el panel de detalle quedaban "pegados" en el último color del viaje aunque ya se había vuelto al idle, por lo que los siguientes análisis continuaban apareciendo en rojo o verde incorrectamente. | Se reforzó el reseteo del overlay nativo a `GRAPHITE` desde `resetLiveUIToIdle()`, y además se limpia el estado de viaje cuando cambia de app o cuando la app pasa a `Ninguna`. |
 | 2 | `main.js` | La deduplicación de viajes se mantenía activa demasiado tiempo y podía bloquear un viaje nuevo que tenía la misma firma de datos que el anterior. | Se limpia la clave `lastTripKey` al terminar el timer de visualización y en cada cambio de app, permitiendo que viajes nuevos vuelvan a evaluarse sin quedar bloqueados. |
 | 3 | `FloatingBubbleService.kt` | El detalle del overlay mostraba la tasa horaria, saturando el panel y desviando la atención de la decisión principal (gasto y ganancia neta). | Se eliminó la línea de `Tasa Horaria` del detalle expandido para mantener la información clara y orientada a la decisión rápida del conductor. |
+| 4 | `FloatingBubbleService.kt`, `VerdiPlugin.kt` | El overlay se apagaba unos segundos y luego volvía a activarse solo, incluso tras pulsar “Detener” o “APAGAR SEMÁFORO”. La causa era que el servicio se re-arrancaba desde eventos nativos y `START_STICKY` lo volvía a iniciar. | Se usa `START_NOT_STICKY`, se persiste `bubble_enabled` en `SharedPreferences` y se ignora cualquier actualización de estado si la burbuja está desactivada manualmente. |
 
 #### ✨ Mejoras
+- **Overlay controlado por el usuario:** una vez apaga la burbuja, esta se mantiene apagada hasta que el conductor la vuelve a iniciar manualmente.
 - **Overlay más estable:** la burbuja vuelve dos veces a estado seguro: al idle y al cambiar de app, evitando estados persistentes incorrectos.
 - **Lectura más clara del detalle:** el panel del overlay prioriza precio, gasto y ganancia neta; la tasa horaria queda como dato interno y no se renderiza en la vista flotante.
 - **Flujo visual más limpio:** cada nuevo análisis puede reflejar su color real sin quedar bloqueado por un viaje anterior.
@@ -279,7 +281,7 @@ gantt
   * **Amarillo (Marginal):** Viaje aceptable que se encuentra cerca del límite mínimo de distancia.
   * **Rojo (Poco rentable / Pérdida):** No cumple la meta mínima de distancia o genera pérdida.
 * **📡 Monitoreo e Instalación de Apps de Conductor (Novedad):** Verifica si las aplicaciones oficiales de conductor (**Uber Driver**, **DiDi Conductor** y **Cabify Driver**) están instaladas en el dispositivo, informando su estado en tiempo real (**Instalada / En segundo plano**, **Activa / En primer plano** o **No detectada**).
-* **💬 Burbuja Flotante de Servicio (Control Directo):** Un widget interactivo que flota sobre las otras aplicaciones y cambia de color en menos de 500 ms al recibir un viaje. Se puede iniciar y detener directamente desde el panel principal con un botón interactivo y es libremente arrastrable. El detalle expandido se mantiene enfocado en precio, gas y ganancia neta para ahorrar lectura en pantalla.
+* **💬 Burbuja Flotante de Servicio (Control Directo):** Un widget interactivo que flota sobre las otras aplicaciones y cambia de color en menos de 500 ms al recibir un viaje. Se puede iniciar y detener directamente desde el panel principal y desde el panel expandido, y además mantiene un estado persistente de activación para no reencenderse solo tras haberla apagado manualmente. El detalle expandido se mantiene enfocado en precio, gas y ganancia neta para ahorrar lectura en pantalla.
 * **🌎 Soporte Regional Adaptable:** Admite múltiples monedas (CLP, USD, COP, MXN, EUR, etc.) y unidades regionales (KM/Millas, Litros/Galones, KM/L, MPG) sin alterar la lógica interna.
 
 ---
@@ -379,5 +381,6 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 14 | El semáforo quedaba pegado en rojo (o cualquier color) indefinidamente porque el servicio nativo re-disparaba el mismo viaje varias veces, renovando `lastCapturedTime` en cada disparo y evitando que se cumpliera la condición de reset a grafito | Deduplicación por clave `price-distance-timeMins` en `main.js`; eventos idénticos dentro de 10 s se descartan sin reiniciar el timer | ✅ Resuelto en v1.8 |
 | 15 | El semáforo nunca volvía a negro/grafito después de mostrar un viaje — el umbral de 30 s en el polling nunca se alcanzaba por la deduplicación anterior, y la UI quedaba congelada en el color del último análisis | `onTripCaptured` ahora arma un `setTimeout` de 8 s que resetea la UI de forma determinista; umbral del polling reducido de 30 000 ms a 8 000 ms en los 3 puntos donde se aplica | ✅ Resuelto en v1.8 |
 | 16 | La burbuja y el panel del overlay quedaban "pegados" en rojo/verde aunque el viaje ya había terminado, y los siguientes viajes aparecían mal clasificados por un estado stale del último análisis | En `main.js` se reforzó el reset a `GRAPHITE`, se limpia el estado al cambiar de app y al volver a `Ninguna`, y se fuerza el borrado de la clave deduplicada al terminar el timer | ✅ Resuelto en v1.9 |
-| 17 | El detalle del overlay estaba saturado con la tasa horaria, haciendo la lectura más pesada y menos clara para el conductor | Se eliminó la línea `Tasa Horaria` del panel expandido en `FloatingBubbleService.kt` para priorizar gasto y ganancia neta | ✅ Resuelto en v1.9 |
+| 17 | El detalle del overlay estaba saturado con la tasa horaria, haciendo la lectura más pesada y menos clara para el conductor | Se eliminó la línea `Tasa Horaria` del panel expandido en `FloatingBubbleService.kt` para priorizar gasto y ganancia neta | ✅ Resuelto en v1.10 |
+| 18 | La burbuja se apaga unos segundos y vuelve a encenderse sola, incluso después de pulsar “Detener” o “APAGAR SEMÁFORO” | Se reemplazó `START_STICKY` por `START_NOT_STICKY`, se guarda `bubble_enabled` en `SharedPreferences` y se ignora cualquier actualización si el usuario la ha desactivado manualmente | ✅ Resuelto en v1.10 |
 

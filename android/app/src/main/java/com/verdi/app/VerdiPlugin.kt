@@ -208,6 +208,9 @@ class VerdiPlugin : Plugin() {
     @PluginMethod
     fun toggleBubble(call: PluginCall) {
         val active = call.getBoolean("active", false) ?: false
+        val prefs = context.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("bubble_enabled", active).commit()
+
         val intent = Intent(context, FloatingBubbleService::class.java)
         if (active) {
             ContextCompat.startForegroundService(context, intent)

@@ -47,6 +47,14 @@ class FloatingBubbleService : Service() {
             val state = BubbleState(decision, price, fuel, net, hourly, currency)
             pendingState = state
 
+            val prefs = context?.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+            val bubbleEnabled = prefs?.getBoolean("bubble_enabled", true) ?: true
+            if (!bubbleEnabled) {
+                Log.d(TAG, "Bubble is disabled by user; ignoring updateBubble state: $decision")
+                pendingState = null
+                return
+            }
+
             if (instance != null) {
                 instance?.updateBubbleState(decision, price, fuel, net, hourly, currency)
                 pendingState = null
@@ -85,8 +93,8 @@ class FloatingBubbleService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand called - Service starting/restarting")
-        return START_STICKY
+        Log.d(TAG, "onStartCommand called - Service starting")
+        return START_NOT_STICKY
     }
 
     override fun onCreate() {
@@ -279,6 +287,10 @@ class FloatingBubbleService : Service() {
 
             setOnClickListener {
                 Log.d(TAG, "Deactivate button clicked - stopping FloatingBubbleService")
+                getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+                    .edit()
+                    .putBoolean("bubble_enabled", false)
+                    .apply()
                 stopSelf()
             }
         }
