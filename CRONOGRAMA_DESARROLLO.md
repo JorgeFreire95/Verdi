@@ -57,8 +57,12 @@ gantt
     "Deduplicación de eventos onTripCaptured repetidos" :done, s9a, 2026-08-12, 2026-08-12
     "Reset automático a grafito con setTimeout 8s" :done, s9b, 2026-08-12, 2026-08-12
     "Centralización de resetLiveUIToIdle() y reducción umbral 30s→8s" :done, s9c, 2026-08-12, 2026-08-12
-```
 
+    section Sprint 10: Estabilidad Final del Overlay
+    "Reset final del overlay a GRAPHITE y limpieza de estado stale" :done, s10a, 2026-08-15, 2026-08-15
+    "Limpieza de deduplicación y reset al cambiar de app / Ninguna" :done, s10b, 2026-08-15, 2026-08-15
+    "Eliminación de tasa horaria del detalle del overlay" :done, s10c, 2026-08-15, 2026-08-15
+```
 ---
 
 ## 📝 Desglose de Fases (Sprints)
@@ -128,3 +132,10 @@ gantt
   * **Reset automático con `setTimeout` de 8 segundos:** Se agregó un timer local dentro de `onTripCaptured` que resetea la UI al estado grafito exactamente 8 segundos después de mostrar el análisis, de forma determinista e independiente del ciclo de polling.
   * **Reducción del umbral de polling de 30 s a 8 s:** El umbral `timeSinceCapture` del `checkAndroidPermissions` (3 puntos) se redujo de 30 000 ms a 8 000 ms para alinearlo con el nuevo timer automático y actuar como respaldo.
   * **Función `resetLiveUIToIdle()` centralizada:** Se extrajo y unificó la lógica de reset de UI (semáforo, título, descripción, métricas) que estaba duplicada en 3 lugares, usando `STATE.lastActiveApp` para mostrar el nombre correcto de la app de conductor activa.
+
+### Sprint 10: Estabilidad Final del Overlay (15 Ago)
+* **Objetivo:** Eliminar los estados stale del overlay y dejar el detalle visual más claro para la decisión del conductor.
+* **Hitos alcanzados:**
+  * **Reset final a `GRAPHITE` y limpieza de estado stale:** Se reforzó el reset del overlay nativo desde `resetLiveUIToIdle()`, y se limpia el estado de viaje cuando cambia de app o cuando la app pasa a `Ninguna` para evitar que el semáforo permanezca en rojo/verde.
+  * **Limpieza de deduplicación ante viajes nuevos:** La clave `lastTripKey` se borra al terminar el timer y en cada cambio de app, permitiendo que un viaje nuevo vuelva a evaluarse sin quedar bloqueado.
+  * **Detalle del overlay más legible:** Se elimina la línea de `Tasa Horaria` del panel expandido para mantener el foco en gasto y ganancia neta, reduciendo ruido visual y mejorando la lectura rápida.
