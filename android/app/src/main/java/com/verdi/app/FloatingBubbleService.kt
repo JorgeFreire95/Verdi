@@ -75,7 +75,6 @@ class FloatingBubbleService : Service() {
     private lateinit var textPrice: TextView
     private lateinit var textFuel: TextView
     private lateinit var textProfit: TextView
-    private lateinit var textHourlyRate: TextView
 
     private lateinit var params: WindowManager.LayoutParams
     private lateinit var panelParams: WindowManager.LayoutParams
@@ -238,12 +237,10 @@ class FloatingBubbleService : Service() {
         textPrice = createPanelLabel("Precio Oferta: --")
         textFuel = createPanelLabel("Gasto Gasolina: --")
         textProfit = createPanelLabel("Ganancia Neta: --")
-        textHourlyRate = createPanelLabel("Por Hora: --")
 
         panelLayout.addView(textPrice)
         panelLayout.addView(textFuel)
         panelLayout.addView(textProfit)
-        panelLayout.addView(textHourlyRate)
 
         // Close/minimize instruction
         val closeDescText = TextView(this).apply {
@@ -371,7 +368,7 @@ class FloatingBubbleService : Service() {
         price: Double,
         fuel: Double,
         net: Double,
-        hourly: Double,
+        _hourly: Double,
         currencyCode: String
     ) {
         val emoji: String
@@ -429,8 +426,6 @@ class FloatingBubbleService : Service() {
                 val netColor = if (net >= 0) "#10B981" else "#EF4444"
                 textProfit.setTextColor(Color.parseColor(netColor))
                 textProfit.text = String.format("Ganancia Neta: %s%,.0f", cleanCur, net)
-                
-                textHourlyRate.text = String.format("Tasa Horaria: %s%,.0f/hr", cleanCur, hourly)
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating bubble view background", e)
             }

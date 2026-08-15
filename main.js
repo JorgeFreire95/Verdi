@@ -782,6 +782,16 @@ function resetLiveUIToIdle() {
   elements.liveTrafficLight.className = 'traffic-light-preview graphite';
   elements.liveMetricsContainer.style.display = 'none';
   elements.liveBubbleText.innerText = '🔘';
+
+  // Reset the native overlay state too; otherwise the bubble remains stuck in the last color.
+  VerdiPlugin.updateBubbleState({
+    decision: 'GRAPHITE',
+    price: 0,
+    fuel: 0,
+    net: 0,
+    hourly: 0,
+    currency: STATE.currency
+  }).catch(err => console.warn('Bubble reset failed:', err));
 }
 
 function setupNativeListeners() {
@@ -790,6 +800,15 @@ function setupNativeListeners() {
 
   // Dedup key: prevents reprocessing the same trip data fired repeatedly by the service
   let lastTripKey = null;
+
+  const clearTripDisplayState = () => {
+    if (tripDisplayTimer) {
+      clearTimeout(tripDisplayTimer);
+      tripDisplayTimer = null;
+    }
+    STATE.lastCapturedTime = 0;
+    lastTripKey = null;
+  };
 
   try {
     // Listen for trips captured by background OCR/Accessibility service
@@ -852,8 +871,7 @@ function setupNativeListeners() {
 
       // Auto-reset UI to idle after 8 seconds
       tripDisplayTimer = setTimeout(() => {
-        tripDisplayTimer = null;
-        STATE.lastCapturedTime = 0;
+        clearTripDisplayState();
         resetLiveUIToIdle();
       }, 8000);
 
@@ -891,11 +909,18 @@ function setupNativeListeners() {
         console.log('[onAppConnected] Ignoring Verdi self-scan');
         return;
       }
+
+      // Clear stale trip visuals when app changes or when app is no longer active.
+      clearTripDisplayState();
       
       // FORCE UPDATE: immediately update UI
       console.log('[onAppConnected] 🚀 FORCING UI UPDATE for:', appName);
       STATE.lastActiveApp = appName;
       updateAppConnectionUI(appName);
+
+      if (appName === 'Ninguna') {
+        resetLiveUIToIdle();
+      }
       
       // Lock UI: make sure it stays updated for 10 seconds
       STATE.uiLockedApp = appName;
