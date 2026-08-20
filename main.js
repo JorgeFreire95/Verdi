@@ -439,11 +439,18 @@ async function checkAndroidPermissions() {
     if (elements.installDiDi)  elements.installDiDi.innerText  = STATE.installations.didi   ? 'Instalado' : 'No instalado';
     if (elements.installCabify) elements.installCabify.innerText = STATE.installations.cabify ? 'Instalado' : 'No instalado';
 
-    // If overlay permission is disabled or the native bubble service is not running, turn off active state
-    if (!res.overlay || res.isBubbleRunning === false) {
+    // If overlay permission is disabled, turn off active state
+    if (!res.overlay) {
       STATE.bubbleActive = false;
     } else if (res.isBubbleRunning === true) {
       STATE.bubbleActive = true;
+    } else if (res.isBubbleRunning === false) {
+      if (STATE.bubbleActive) {
+        // Servicio fue matado por Android pero el usuario lo tenía activo — reiniciar automáticamente
+        VerdiPlugin.toggleBubble({ active: true }).catch(err => console.warn('Auto-restart bubble failed:', err));
+      } else {
+        STATE.bubbleActive = false;
+      }
     }
     updateBubbleUI(STATE.bubbleActive);
 

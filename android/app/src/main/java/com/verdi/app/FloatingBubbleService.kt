@@ -93,8 +93,8 @@ class FloatingBubbleService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand called - Service starting")
-        return START_NOT_STICKY
+        Log.d(TAG, "onStartCommand called - Service starting/restarting")
+        return START_STICKY
     }
 
     override fun onCreate() {
@@ -287,10 +287,6 @@ class FloatingBubbleService : Service() {
 
             setOnClickListener {
                 Log.d(TAG, "Deactivate button clicked - stopping FloatingBubbleService")
-                getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
-                    .edit()
-                    .putBoolean("bubble_enabled", false)
-                    .apply()
                 stopSelf()
             }
         }
