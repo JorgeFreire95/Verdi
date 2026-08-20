@@ -15,56 +15,57 @@ gantt
     axisFormat  %m-%d
     
     section Sprint 1: Presentación y Core
-    "Estructura HTML5 / CSS Glassmorphism" :done, s1a, 2026-06-13, 2026-06-14
-    "Motor de Cálculos de Rentabilidad (JS)" :done, s1b, 2026-06-13, 2026-06-15
+    Estructura HTML5 / CSS Glassmorphism     :done, s1a, 2026-06-13, 2d
+    Motor de Cálculos de Rentabilidad (JS)   :done, s1b, 2026-06-13, 2d
     
     section Sprint 2: Lógica Nativa y Datos
-    "Integración Capacitor Bridge" :done, s2a, 2026-06-15, 2026-06-20
-    "Burbuja Flotante y WindowManager (Overlay UI)" :done, s2b, 2026-06-19, 2026-06-23
-    "Persistencia de Parámetros (SharedPreferences)" :done, s2c, 2026-06-20, 2026-06-23
+    Integración Capacitor Bridge             :done, s2a, 2026-06-15, 5d
+    Burbuja Flotante y WindowManager         :done, s2b, 2026-06-19, 4d
+    Persistencia de Parámetros (SharedPrefs) :done, s2c, 2026-06-20, 3d
     
     section Sprint 3: Integración Reactiva
-    "Servicio de Accesibilidad y OCR Local" :done, s3a, 2026-06-24, 2026-06-30
-    "Detección de Apps de Conductor (Uber/DiDi/Cabify)" :done, s3b, 2026-06-24, 2026-06-28
-    "Sincronización de Eventos en Segundo Plano" :done, s3c, 2026-06-28, 2026-07-01
+    Servicio de Accesibilidad y OCR Local    :done, s3a, 2026-06-24, 6d
+    Detección de Apps de Conductor           :done, s3b, 2026-06-24, 4d
+    Sincronización de Eventos en Background  :done, s3c, 2026-06-28, 3d
     
     section Sprint 4: Estabilización y Depuración
-    "Corrección de Registro de Plugin en Capacitor" :done, s4a, 2026-07-01, 2026-07-04
-    "Debounce de Resets a 'Ninguna' y Badges de Instalación" :done, s4b, 2026-07-02, 2026-07-04
+    Corrección de Registro de Plugin         :done, s4a, 2026-07-01, 3d
+    Debounce de Resets y Badges              :done, s4b, 2026-07-02, 2d
     
     section Sprint 5: Refactor, UI y Soporte
-    "Remoción de Permisos Innecesarios (GPS/Uso)" :done, s5a, 2026-07-20, 2026-07-24
-    "Asistente de Permisos Dinámico y Snap de Burbuja" :done, s5b, 2026-07-24, 2026-07-25
-    "Pestaña de Ayuda Interactiva y Solución Ajustes Restringidos" :done, s5c, 2026-07-26, 2026-07-26
-    "Corrección de Redibujado de Color de Burbuja y Visibilidad de Wizard" :done, s5d, 2026-07-26, 2026-07-30
+    Remoción de Permisos Innecesarios        :done, s5a, 2026-07-20, 4d
+    Asistente de Permisos y Snap de Burbuja  :done, s5b, 2026-07-24, 2d
+    Pestaña Ayuda y Ajustes Restringidos     :done, s5c, 2026-07-26, 1d
+    Fix Redibujado de Burbuja y Wizard       :done, s5d, 2026-07-26, 4d
     
     section Sprint 6: Corrección Definitiva del Color de Burbuja
-    "Reemplazo de Broadcasts por Llamada Directa (companion object)" :done, s6a, 2026-08-01, 2026-08-01
-    "Fix Race Condition en Actualización de Color (capture-before-post)" :done, s6b, 2026-08-01, 2026-08-01
-    "Limpieza de instance en onDestroy y remoción de BroadcastReceiver" :done, s6c, 2026-08-01, 2026-08-01
+    Reemplazo Broadcasts por companion object :done, s6a, 2026-08-01, 1d
+    Fix Race Condition capture-before-post    :done, s6b, 2026-08-01, 1d
+    Limpieza instance y remoción Receiver     :done, s6c, 2026-08-01, 1d
 
-    section Sprint 7: Estabilización de Overlay y Detección de Apps
-    "Buffer de estado pendiente para el overlay" :done, s7a, 2026-08-06, 2026-08-06
-    "Validación de apps activas contra paquetes instalados" :done, s7b, 2026-08-06, 2026-08-06
-    "Arranque robusto del overlay con startForegroundService" :done, s7c, 2026-08-06, 2026-08-06
+    section Sprint 7: Estabilización Overlay y Apps
+    Buffer de estado pendiente para overlay   :done, s7a, 2026-08-06, 1d
+    Validación de apps contra paquetes inst.  :done, s7b, 2026-08-06, 1d
+    Arranque robusto con startForegroundSvc   :done, s7c, 2026-08-06, 1d
 
-    section Sprint 8: Config Sync y Estabilidad del WebView
-    "Fix race condition config (apply→commit en updateConfig)" :done, s8a, 2026-08-08, 2026-08-08
-    "Guard de concurrencia en checkAndroidPermissions (freeze fix)" :done, s8b, 2026-08-08, 2026-08-08
-    "Persistencia de resultado de viaje extendida 6s→30s" :done, s8c, 2026-08-08, 2026-08-08
+    section Sprint 8: Config Sync y Estabilidad WebView
+    Fix race condition config apply→commit    :done, s8a, 2026-08-08, 1d
+    Guard de concurrencia checkPermissions    :done, s8b, 2026-08-08, 1d
+    Persistencia resultado de viaje 6s→30s   :done, s8c, 2026-08-08, 1d
 
     section Sprint 9: Semáforo y Reset Automático de UI
-    "Deduplicación de eventos onTripCaptured repetidos" :done, s9a, 2026-08-12, 2026-08-12
-    "Reset automático a grafito con setTimeout 8s" :done, s9b, 2026-08-12, 2026-08-12
-    "Centralización de resetLiveUIToIdle() y reducción umbral 30s→8s" :done, s9c, 2026-08-12, 2026-08-12
+    Deduplicación de onTripCaptured repetidos :done, s9a, 2026-08-12, 1d
+    Reset automático a grafito setTimeout 8s  :done, s9b, 2026-08-12, 1d
+    Centralización resetLiveUIToIdle 30s→8s   :done, s9c, 2026-08-12, 1d
 
     section Sprint 10: Estabilidad Final del Overlay
-    "Reset final del overlay a GRAPHITE y limpieza de estado stale" :done, s10a, 2026-08-15, 2026-08-15
-    "Limpieza de deduplicación y reset al cambiar de app / Ninguna" :done, s10b, 2026-08-15, 2026-08-15
-    "Eliminación de tasa horaria del detalle del overlay" :done, s10c, 2026-08-15, 2026-08-15
-    "Persistencia del estado off del overlay y bloqueo de reactivación" :done, s10d, 2026-08-15, 2026-08-15
-    "Ignorar updates de viaje cuando el bubble está deshabilitado" :done, s10e, 2026-08-15, 2026-08-15
+    Reset overlay a GRAPHITE y limpieza stale :done, s10a, 2026-08-15, 1d
+    Limpieza deduplicación y reset por app    :done, s10b, 2026-08-15, 1d
+    Eliminación tasa horaria del overlay      :done, s10c, 2026-08-15, 1d
+    Persistencia estado off del overlay       :done, s10d, 2026-08-15, 1d
+    Ignorar updates si bubble deshabilitado   :done, s10e, 2026-08-15, 1d
 ```
+
 ---
 
 ## 📝 Desglose de Fases (Sprints)
@@ -75,7 +76,7 @@ gantt
   * Maquetación HTML5 y estilo CSS oscuro premium con efectos de desenfoque (`glassmorphism`).
   * Implementación del algoritmo de rentabilidad operacional restando costos estimados de combustible.
 
-### Sprint 2: Lógica Nátiva y Persistencia (15 Jun - 23 Jun)
+### Sprint 2: Lógica Nativa y Persistencia (15 Jun - 23 Jun)
 * **Objetivo:** Establecer la persistencia de datos y el comportamiento de la burbuja sobre otras apps.
 * **Hitos alcanzados:**
   * Integración del puente Capacitor para coordinar peticiones nativas en Android.
