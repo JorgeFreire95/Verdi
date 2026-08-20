@@ -102,6 +102,9 @@ gantt
     section Sprint 9: Corrección de semáforo y reset UI
     Fix deduplicación onTripCaptured     :done, s9, 2026-08-12, 1d
     Reset automático 8s a grafito        :done, s10, 2026-08-12, 1d
+    section Sprint 10: Estabilidad Final del Overlay
+    Reset overlay a GRAPHITE y limpieza stale :done, s11, 2026-08-15, 1d
+    Persistencia estado off y bloqueo reactivación :done, s12, 2026-08-15, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -116,46 +119,78 @@ gantt
 * **Sprint 4: Estabilización del Sistema de Detección (Duración: 1 Semana) — ✅ Completado**
   * **Sprint Goal:** Resolver los bugs de detección de app activa, registro correcto del plugin Capacitor y estabilidad del estado entre transiciones de apps.
   * **Entregable:** APK estable con detección confiable de Cabify/Uber/DiDi, transición correcta entre primer y segundo plano, y badges de instalación actualizados en tiempo real.
+* **Sprint 5: Refactor, UX y Soporte (Duración: 2 Semanas) — ✅ Completado**
+  * **Sprint Goal:** Simplificar permisos, mejorar la experiencia de usuario y proveer soporte integrado por marca de teléfono.
+  * **Entregable:** APK con asistente de permisos dinámico, snap magnético de burbuja, pestaña de Ayuda interactiva y solución para Ajustes Restringidos.
+* **Sprint 6: Corrección Definitiva del Color de Burbuja (1 día) — ✅ Completado**
+  * **Sprint Goal:** Resolver de forma definitiva la falta de cambio de color en la burbuja flotante eliminando el mecanismo de broadcasts.
+  * **Entregable:** APK con cambio de color instantáneo garantizado mediante llamada directa `companion object`.
+* **Sprint 7: Estabilización de Overlay y Detección de Apps (1 día) — ✅ Completado**
+  * **Sprint Goal:** Asegurar que el overlay conserve el último estado del viaje y que la UI no muestre apps no instaladas como activas.
+  * **Entregable:** APK con buffer de estado pendiente y validación de apps instaladas.
+* **Sprint 8: Config Sync y Estabilidad del WebView (1 día) — ✅ Completado**
+  * **Sprint Goal:** Corregir la propagación de configuración al motor de cálculo y el freeze del WebView por llamadas concurrentes.
+  * **Entregable:** APK con `editor.commit()` síncrono, guard `_checkingPermissions` y resultado de viaje visible 30 s.
+* **Sprint 9: Semáforo y Reset Automático de UI (1 día) — ✅ Completado**
+  * **Sprint Goal:** Resolver el semáforo que quedaba pegado en un color indefinidamente tras recibir un viaje.
+  * **Entregable:** APK con deduplicación de eventos, reset determinista a los 8 s y función `resetLiveUIToIdle()` centralizada.
+* **Sprint 10: Estabilidad Final del Overlay (1 día) — ✅ Completado**
+  * **Sprint Goal:** Eliminar los estados stale del overlay, reforzar el apagado manual y simplificar el panel de detalle del conductor.
+  * **Entregable:** APK con reset a `GRAPHITE` robusto, `bubble_enabled` persistente y panel de detalle sin tasa horaria.
+
+---
+
+## ✨ Características Principales
+
+* **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, extrayendo la tarifa, distancia y tiempo del viaje.
+* **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando si cumple con los objetivos de ingresos por distancia. Funciona de manera 100% local (sin depender de conexión a internet).
+* **🟢 Semáforo Inteligente:** Muestra de forma visual e inmediata la calidad del viaje:
+  * **Verde (Rentable):** Cumple con la meta de ganancia por distancia.
+  * **Amarillo (Marginal):** Viaje aceptable que se encuentra cerca del límite mínimo.
+  * **Rojo (Poco rentable / Pérdida):** No cumple la meta mínima o genera pérdida.
+* **📡 Monitoreo de Apps de Conductor:** Verifica si Uber Driver, DiDi Conductor y Cabify Driver están instaladas e informa su estado en tiempo real (Activa / En segundo plano / No detectada).
+* **💬 Burbuja Flotante de Servicio:** Widget interactivo que flota sobre otras apps, cambia de color en menos de 500 ms, hace snap magnético al borde de pantalla y persiste su estado de activación (no se reactiva sola tras apagarla manualmente).
+* **🌎 Soporte Regional Adaptable:** Admite múltiples monedas (CLP, USD, COP, MXN, EUR, etc.) y unidades regionales (KM/Millas, Litros/Galones, KM/L, MPG) sin alterar la lógica interna.
 
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
 
-### v1.1.0 — Sprint 4 (2026-07-04)
+### v1.10.0 — Sprint 10 (2026-08-15)
 
 #### 🐛 Bugs Corregidos
 
 | # | Componente | Descripción del bug | Solución aplicada |
 |---|---|---|---|
-| 1 | `MainActivity.kt` | `VerdiPlugin` no estaba registrado en Capacitor. El error `"Verdi" plugin is not implemented on android` causaba que `VerdiPlugin.load()` nunca se llamara, `instance` siempre fuera `null` y ningún evento llegara al JS. | Se agregó `registerPlugin(VerdiPlugin::class.java)` en `onCreate()` antes de `super.onCreate()`. |
-| 2 | `VerdiAccessibilityService.kt` | `detectForegroundAppFromWindowsList()` usaba `?: continue` para la ventana topmost desconocida (ej. Verdi), continuando el loop y encontrando el launcher en background, disparando falsos resets a "Ninguna". | Cambiado a `?: return` — si la ventana topmost es desconocida, se detiene el procesamiento sin modificar el estado. |
-| 3 | `main.js` | Los badges `install-badge-uber/didi/cabify` mostraban "Detectando..." permanentemente porque nunca se actualizaba el DOM desde `checkAndroidPermissions`. | Se añade la actualización del badge ("Instalado" / "No instalado") tras recibir `res.uberInstalled`, `res.didiInstalled`, `res.cabifyInstalled`. |
-| 4 | `main.js` | Si el evento `onAppConnected` se perdía (timing: Verdi en background cuando Cabify disparó el evento), la UI quedaba en "Inactivo" indefinidamente. | `checkAndroidPermissions` ahora llama a `updateAppConnectionUI(res.activeApp)` cuando la UI no está bloqueada, actualizando el panel cada 2 segundos desde la fuente nativa. |
-| 5 | `VerdiPlugin.kt` | Los eventos `notifyListeners` se perdían cuando la app estaba en background al momento de dispararse. | Se agregó `retainUntilConsumed = true` en `notifyListeners` para `onAppConnected` y `onTripCaptured`, garantizando entrega cuando el listener JS se registra. |
-| 6 | `VerdiPlugin.kt` | Si Cabify se abría antes que Verdi, `instance` era `null` al momento del evento y se perdía. | `load()` ahora "reproduce" el estado actual: lee `VerdiAccessibilityService.activeApp` y lo emite inmediatamente al WebView con `retainUntilConsumed = true`. |
-| 7 | `VerdiPlugin.kt` | Al cerrar Cabify, el campo `checkPermissions` caía al fallback de `UsageStatsManager` (ventana de 5 min) y seguía mostrando Cabify como activo. | Cuando `activeApp == "Ninguna"` (reset explícito del servicio de accesibilidad), se omiten los fallbacks de UsageStats y SharedPreferences en `checkPermissions`. |
-| 8 | `VerdiAccessibilityService.kt` | Al cambiar de Cabify a Verdi, el launcher aparecía brevemente en la lista de ventanas, disparando `commitActiveApp("Ninguna")` y reseteando el estado antes de que Verdi cargara. | Se implementó un **debounce de 4 segundos** para el reset a "Ninguna": transiciones rápidas (<4s) no afectan el estado; cierres genuinos de la app resetean correctamente tras 4s. |
+| 1 | `main.js` | La burbuja flotante y el panel de detalle quedaban "pegados" en el último color del viaje aunque ya se había vuelto al idle, por lo que los siguientes análisis continuaban apareciendo en rojo o verde incorrectamente. | Se reforzó el reseteo del overlay nativo a `GRAPHITE` desde `resetLiveUIToIdle()`, y además se limpia el estado de viaje cuando cambia de app o cuando la app pasa a `Ninguna`. |
+| 2 | `main.js` | La deduplicación de viajes se mantenía activa demasiado tiempo y podía bloquear un viaje nuevo que tenía la misma firma de datos que el anterior. | Se limpia la clave `lastTripKey` al terminar el timer de visualización y en cada cambio de app, permitiendo que viajes nuevos vuelvan a evaluarse sin quedar bloqueados. |
+| 3 | `FloatingBubbleService.kt` | El detalle del overlay mostraba la tasa horaria, saturando el panel y desviando la atención de la decisión principal (gasto y ganancia neta). | Se eliminó la línea de `Tasa Horaria` del detalle expandido para mantener la información clara y orientada a la decisión rápida del conductor. |
+| 4 | `FloatingBubbleService.kt`, `VerdiPlugin.kt` | El overlay se apagaba unos segundos y luego volvía a activarse solo, incluso tras pulsar "Detener" o "APAGAR SEMÁFORO". La causa era que el servicio se re-arrancaba desde eventos nativos y `START_STICKY` lo volvía a iniciar. | Se usa `START_NOT_STICKY`, se persiste `bubble_enabled` en `SharedPreferences` y se ignora cualquier actualización de estado si la burbuja está desactivada manualmente. |
 
 #### ✨ Mejoras
+- **Overlay controlado por el usuario:** una vez apaga la burbuja, esta se mantiene apagada hasta que el conductor la vuelve a iniciar manualmente.
+- **Overlay más estable:** la burbuja vuelve a estado seguro al idle y al cambiar de app, evitando estados persistentes incorrectos.
+- **Lectura más clara del detalle:** el panel del overlay prioriza precio, gasto y ganancia neta; la tasa horaria queda como dato interno y no se renderiza en la vista flotante.
+- **Flujo visual más limpio:** cada nuevo análisis puede reflejar su color real sin quedar bloqueado por un viaje anterior.
 
-- **Registro explícito del plugin:** `MainActivity` ahora registra `VerdiPlugin` antes de inicializar el bridge, garantizando compatibilidad en todos los dispositivos Android.
-- **Debounce de estado "Ninguna":** Elimina falsos resets durante transiciones entre apps. El conductor puede cambiar entre Cabify y Verdi sin perder el estado de conexión.
-- **Replay de estado en carga:** Al abrir Verdi tras haber activado Cabify, el plugin sincroniza el estado inmediatamente en lugar de esperar el próximo ciclo de polling.
-- **Badges de instalación en tiempo real:** Uber, DiDi y Cabify muestran correctamente "Instalado" o "No instalado" actualizados cada 2 segundos.
+---
 
-### v1.4.0 — Sprint 6 (2026-08-01)
+### v1.8.0 — Sprint 9 (2026-08-12)
 
 #### 🐛 Bugs Corregidos
 
 | # | Componente | Descripción del bug | Solución aplicada |
 |---|---|---|---|
-| 1 | `FloatingBubbleService.kt`, `VerdiAccessibilityService.kt`, `VerdiPlugin.kt` | La burbuja flotante no cambiaba de color (permanecía grafito 🔘) aunque el análisis de rentabilidad era correcto. En Android 13+, los broadcasts locales `UPDATE_BUBBLE` enviados con `setPackage(...)` no se entregaban al servicio de forma confiable cuando la app estaba en background o el sistema recortaba procesos. | Se eliminó por completo el mecanismo de broadcast. Se adoptó el patrón de **llamada directa** mediante `companion object`: `FloatingBubbleService` expone `updateBubble(...)` a través de una referencia `@Volatile private var instance`. Los llamadores (`VerdiAccessibilityService` y `VerdiPlugin`) invocan `FloatingBubbleService.updateBubble(...)` directamente, garantizando entrega instantánea sin intermediarios de IPC. |
-| 2 | `FloatingBubbleService.kt` | Posible **race condition** visual: si dos análisis consecutivos llegaban rápido, el `stateColor` capturado dentro del `Handler.post` podía corresponder al segundo análisis mientras el fondo reflejaba el primero, resultando en emoji y color inconsistentes. | `stateColor` ahora se captura en una variable local **antes** del `Handler.post`, congelando el valor correcto en el closure del hilo principal. |
-| 3 | `FloatingBubbleService.kt` | Si el servicio recibía una actualización mientras las vistas aún se estaban inicializando, se producía un `NullPointerException`. | `instance = this` se asigna al final de `onCreate()`, **después** de que `createBubbleView()` y `createPanelView()` completan, eliminando la ventana de inicialización parcial. |
+| 1 | `main.js` | El semáforo quedaba pegado en un estado de color (rojo, verde o amarillo) indefinidamente después de recibir un viaje. El servicio nativo puede emitir el evento `onTripCaptured` múltiples veces con los mismos datos, lo que reiniciaba `lastCapturedTime` en cada disparo y hacía que la condición de reset jamás se cumpliera. | Se añadió un mecanismo de **deduplicación por clave de viaje** (`price-distance-timeMins`). Si el mismo viaje se emite nuevamente dentro de 10 segundos, el evento se ignora sin reiniciar el timer. |
+| 2 | `main.js` | El semáforo nunca volvía a negro (grafito) tras mostrar el análisis de un viaje: el umbral de reset era `30 000 ms` (30 segundos) en el polling, pero dado que el servicio nativo re-disparaba el mismo viaje constantemente, ese umbral nunca se alcanzaba. | Se agregó un `setTimeout` de **8 segundos** directamente dentro de `onTripCaptured` que resetea la UI al estado grafito de forma determinista, independientemente del polling. El umbral del polling también se redujo de `30 000 ms` a `8 000 ms` en los 3 puntos donde se aplica. |
+| 3 | `main.js` | La lógica de reset de UI estaba duplicada en 3 lugares con variaciones sutiles, lo que dificultaba mantener el estado correcto (nombre de la app conectada, métricas visibles, emoji). | Se extrajo una función `resetLiveUIToIdle()` reutilizable que centraliza el reseteo del semáforo, el texto de estado y los indicadores de métricas, usando `STATE.lastActiveApp` para mostrar el nombre correcto de la app conectada. |
 
-#### ✨ Mejoras Técnicas
-- **Eliminación del BroadcastReceiver:** `FloatingBubbleService` ya no registra ni necesita un `BroadcastReceiver` para `UPDATE_BUBBLE`. Esto reduce el overhead de IPC, elimina dependencias de contexto Android y simplifica el ciclo de vida del servicio.
-- **Limpieza de `instance` en `onDestroy`:** Al destruirse el servicio, `instance` se pone a `null` antes de cualquier otra operación, evitando llamadas a vistas ya removidas del `WindowManager`.
+#### ✨ Mejoras
+- **Reset automático garantizado:** El análisis de cada viaje desaparece exactamente a los 8 segundos mediante un timer propio, sin depender del ciclo de polling de 2 segundos.
+- **Deduplicación de eventos nativos:** Viajes idénticos emitidos en rápida sucesión ya no acumulan contadores ni reinician el estado visual de forma indebida.
+- **Estado de app conectada preservado en el reset:** Al volver a grafito, el panel muestra correctamente `"Conectado a [App]"` si la app de conductor sigue activa, en lugar de un mensaje genérico.
+
+---
 
 ### v1.7.0 — Sprint 8 (2026-08-08)
 
@@ -174,7 +209,7 @@ gantt
 
 ---
 
-### v1.6.0 — 2026-08-06
+### v1.6.0 — Sprint 7b (2026-08-06)
 
 #### 🐛 Bugs Corregidos
 
@@ -189,7 +224,7 @@ gantt
 
 ---
 
-### v1.5.0 — 2026-08-06
+### v1.5.0 — Sprint 7 (2026-08-06)
 
 #### 🐛 Bugs Corregidos
 
@@ -203,6 +238,22 @@ gantt
 - **Estado de overlay robusto:** el panel y la burbuja conservan el último estado del viaje aunque la app haya sido cerrada y reabierta.
 - **Limpieza de estados obsoletos:** la app ya no muestra apps de conductor que no están instaladas, evitando falsos activos en el dashboard.
 - **Mayor estabilidad en Android 13+:** el arranque del overlay ahora sigue el flujo recomendado para servicios en primer plano.
+
+---
+
+### v1.4.0 — Sprint 6 (2026-08-01)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt`, `VerdiAccessibilityService.kt`, `VerdiPlugin.kt` | La burbuja flotante no cambiaba de color (permanecía grafito 🔘) aunque el análisis de rentabilidad era correcto. En Android 13+, los broadcasts locales `UPDATE_BUBBLE` enviados con `setPackage(...)` no se entregaban al servicio de forma confiable cuando la app estaba en background o el sistema recortaba procesos. | Se eliminó por completo el mecanismo de broadcast. Se adoptó el patrón de **llamada directa** mediante `companion object`: `FloatingBubbleService` expone `updateBubble(...)` a través de una referencia `@Volatile private var instance`. Los llamadores (`VerdiAccessibilityService` y `VerdiPlugin`) invocan `FloatingBubbleService.updateBubble(...)` directamente, garantizando entrega instantánea sin intermediarios de IPC. |
+| 2 | `FloatingBubbleService.kt` | Posible **race condition** visual: si dos análisis consecutivos llegaban rápido, el `stateColor` capturado dentro del `Handler.post` podía corresponder al segundo análisis mientras el fondo reflejaba el primero, resultando en emoji y color inconsistentes. | `stateColor` ahora se captura en una variable local **antes** del `Handler.post`, congelando el valor correcto en el closure del hilo principal. |
+| 3 | `FloatingBubbleService.kt` | Si el servicio recibía una actualización mientras las vistas aún se estaban inicializando, se producía un `NullPointerException`. | `instance = this` se asigna al final de `onCreate()`, **después** de que `createBubbleView()` y `createPanelView()` completan, eliminando la ventana de inicialización parcial. |
+
+#### ✨ Mejoras Técnicas
+- **Eliminación del BroadcastReceiver:** `FloatingBubbleService` ya no registra ni necesita un `BroadcastReceiver` para `UPDATE_BUBBLE`. Esto reduce el overhead de IPC, elimina dependencias de contexto Android y simplifica el ciclo de vida del servicio.
+- **Limpieza de `instance` en `onDestroy`:** Al destruirse el servicio, `instance` se pone a `null` antes de cualquier otra operación, evitando llamadas a vistas ya removidas del `WindowManager`.
 
 ---
 
@@ -236,53 +287,28 @@ gantt
   - **Apagado Sencillo y Directo:** Se integró un botón rojo `"APAGAR SEMÁFORO"` en el panel detallado que apaga el servicio directamente (`stopSelf()`).
   - **Sincronización Web-Nativa:** El Dashboard de control web detecta la terminación del proceso nativo de la burbuja y actualiza instantáneamente el interruptor a "Iniciar".
 
-### v1.10.0 — 2026-08-15
+---
+
+### v1.1.0 — Sprint 4 (2026-07-04)
 
 #### 🐛 Bugs Corregidos
 
 | # | Componente | Descripción del bug | Solución aplicada |
 |---|---|---|---|
-| 1 | `main.js` | La burbuja flotante y el panel de detalle quedaban "pegados" en el último color del viaje aunque ya se había vuelto al idle, por lo que los siguientes análisis continuaban apareciendo en rojo o verde incorrectamente. | Se reforzó el reseteo del overlay nativo a `GRAPHITE` desde `resetLiveUIToIdle()`, y además se limpia el estado de viaje cuando cambia de app o cuando la app pasa a `Ninguna`. |
-| 2 | `main.js` | La deduplicación de viajes se mantenía activa demasiado tiempo y podía bloquear un viaje nuevo que tenía la misma firma de datos que el anterior. | Se limpia la clave `lastTripKey` al terminar el timer de visualización y en cada cambio de app, permitiendo que viajes nuevos vuelvan a evaluarse sin quedar bloqueados. |
-| 3 | `FloatingBubbleService.kt` | El detalle del overlay mostraba la tasa horaria, saturando el panel y desviando la atención de la decisión principal (gasto y ganancia neta). | Se eliminó la línea de `Tasa Horaria` del detalle expandido para mantener la información clara y orientada a la decisión rápida del conductor. |
-| 4 | `FloatingBubbleService.kt`, `VerdiPlugin.kt` | El overlay se apagaba unos segundos y luego volvía a activarse solo, incluso tras pulsar “Detener” o “APAGAR SEMÁFORO”. La causa era que el servicio se re-arrancaba desde eventos nativos y `START_STICKY` lo volvía a iniciar. | Se usa `START_NOT_STICKY`, se persiste `bubble_enabled` en `SharedPreferences` y se ignora cualquier actualización de estado si la burbuja está desactivada manualmente. |
+| 1 | `MainActivity.kt` | `VerdiPlugin` no estaba registrado en Capacitor. El error `"Verdi" plugin is not implemented on android` causaba que `VerdiPlugin.load()` nunca se llamara, `instance` siempre fuera `null` y ningún evento llegara al JS. | Se agregó `registerPlugin(VerdiPlugin::class.java)` en `onCreate()` antes de `super.onCreate()`. |
+| 2 | `VerdiAccessibilityService.kt` | `detectForegroundAppFromWindowsList()` usaba `?: continue` para la ventana topmost desconocida (ej. Verdi), continuando el loop y encontrando el launcher en background, disparando falsos resets a "Ninguna". | Cambiado a `?: return` — si la ventana topmost es desconocida, se detiene el procesamiento sin modificar el estado. |
+| 3 | `main.js` | Los badges `install-badge-uber/didi/cabify` mostraban "Detectando..." permanentemente porque nunca se actualizaba el DOM desde `checkAndroidPermissions`. | Se añade la actualización del badge ("Instalado" / "No instalado") tras recibir `res.uberInstalled`, `res.didiInstalled`, `res.cabifyInstalled`. |
+| 4 | `main.js` | Si el evento `onAppConnected` se perdía (timing: Verdi en background cuando Cabify disparó el evento), la UI quedaba en "Inactivo" indefinidamente. | `checkAndroidPermissions` ahora llama a `updateAppConnectionUI(res.activeApp)` cuando la UI no está bloqueada, actualizando el panel cada 2 segundos desde la fuente nativa. |
+| 5 | `VerdiPlugin.kt` | Los eventos `notifyListeners` se perdían cuando la app estaba en background al momento de dispararse. | Se agregó `retainUntilConsumed = true` en `notifyListeners` para `onAppConnected` y `onTripCaptured`, garantizando entrega cuando el listener JS se registra. |
+| 6 | `VerdiPlugin.kt` | Si Cabify se abría antes que Verdi, `instance` era `null` al momento del evento y se perdía. | `load()` ahora "reproduce" el estado actual: lee `VerdiAccessibilityService.activeApp` y lo emite inmediatamente al WebView con `retainUntilConsumed = true`. |
+| 7 | `VerdiPlugin.kt` | Al cerrar Cabify, el campo `checkPermissions` caía al fallback de `UsageStatsManager` (ventana de 5 min) y seguía mostrando Cabify como activo. | Cuando `activeApp == "Ninguna"` (reset explícito del servicio de accesibilidad), se omiten los fallbacks de UsageStats y SharedPreferences en `checkPermissions`. |
+| 8 | `VerdiAccessibilityService.kt` | Al cambiar de Cabify a Verdi, el launcher aparecía brevemente en la lista de ventanas, disparando `commitActiveApp("Ninguna")` y reseteando el estado antes de que Verdi cargara. | Se implementó un **debounce de 4 segundos** para el reset a "Ninguna": transiciones rápidas (<4s) no afectan el estado; cierres genuinos de la app resetean correctamente tras 4s. |
 
 #### ✨ Mejoras
-- **Overlay controlado por el usuario:** una vez apaga la burbuja, esta se mantiene apagada hasta que el conductor la vuelve a iniciar manualmente.
-- **Overlay más estable:** la burbuja vuelve dos veces a estado seguro: al idle y al cambiar de app, evitando estados persistentes incorrectos.
-- **Lectura más clara del detalle:** el panel del overlay prioriza precio, gasto y ganancia neta; la tasa horaria queda como dato interno y no se renderiza en la vista flotante.
-- **Flujo visual más limpio:** cada nuevo análisis puede reflejar su color real sin quedar bloqueado por un viaje anterior.
-
----
-
-### v1.8.0 — Sprint 9 (2026-08-12)
-
-#### 🐛 Bugs Corregidos
-
-| # | Componente | Descripción del bug | Solución aplicada |
-|---|---|---|---|
-| 1 | `main.js` | El semáforo quedaba pegado en un estado de color (rojo, verde o amarillo) indefinidamente después de recibir un viaje. El servicio nativo puede emitir el evento `onTripCaptured` múltiples veces con los mismos datos, lo que reiniciaba `lastCapturedTime` en cada disparo y hacía que la condición de reset jamás se cumpliera. | Se añadió un mecanismo de **deduplicación por clave de viaje** (`price-distance-timeMins`). Si el mismo viaje se emite nuevamente dentro de 10 segundos, el evento se ignora sin reiniciar el timer. |
-| 2 | `main.js` | El semáforo nunca volvía a negro (grafito) tras mostrar el análisis de un viaje: el umbral de reset era `30 000 ms` (30 segundos) en el polling, pero dado que el servicio nativo re-disparaba el mismo viaje constantemente, ese umbral nunca se alcanzaba. | Se agregó un `setTimeout` de **8 segundos** directamente dentro de `onTripCaptured` que resetea la UI al estado grafito de forma determinista, independientemente del polling. El umbral del polling también se redujo de `30 000 ms` a `8 000 ms` en los 3 puntos donde se aplica. |
-| 3 | `main.js` | La lógica de reset de UI estaba duplicada en 3 lugares con variaciones sutiles, lo que dificultaba mantener el estado correcto (nombre de la app conectada, métricas visibles, emoji). | Se extrajo una función `resetLiveUIToIdle()` reutilizable que centraliza el reseteo del semáforo, el texto de estado y los indicadores de métricas, usando `STATE.lastActiveApp` para mostrar el nombre correcto de la app conectada. |
-
-#### ✨ Mejoras
-- **Reset automático garantizado:** El análisis de cada viaje desaparece exactamente a los 8 segundos mediante un timer propio, sin depender del ciclo de polling de 2 segundos.
-- **Deduplicación de eventos nativos:** Viajes idénticos emitidos en rápida sucesión ya no acumulan contadores ni reinician el estado visual de forma indebida.
-- **Estado de app conectada preservado en el reset:** Al volver a grafito, el panel muestra correctamente `"Conectado a [App]"` si la app de conductor sigue activa, en lugar de un mensaje genérico.
-
----
-
-
-
-* **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, extrayendo la tarifa, distancia y tiempo del viaje.
-* **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando si cumple con tus objetivos de ingresos por distancia. Funciona de manera 100% local (sin depender de conexión a internet).
-* **🟢 Semáforo Inteligente:** Muestra de forma visual e inmediata la calidad del viaje:
-  * **Verde (Rentable):** Cumple con la meta de ganancia por distancia.
-  * **Amarillo (Marginal):** Viaje aceptable que se encuentra cerca del límite mínimo de distancia.
-  * **Rojo (Poco rentable / Pérdida):** No cumple la meta mínima de distancia o genera pérdida.
-* **📡 Monitoreo e Instalación de Apps de Conductor (Novedad):** Verifica si las aplicaciones oficiales de conductor (**Uber Driver**, **DiDi Conductor** y **Cabify Driver**) están instaladas en el dispositivo, informando su estado en tiempo real (**Instalada / En segundo plano**, **Activa / En primer plano** o **No detectada**).
-* **💬 Burbuja Flotante de Servicio (Control Directo):** Un widget interactivo que flota sobre las otras aplicaciones y cambia de color en menos de 500 ms al recibir un viaje. Se puede iniciar y detener directamente desde el panel principal y desde el panel expandido, y además mantiene un estado persistente de activación para no reencenderse solo tras haberla apagado manualmente. El detalle expandido se mantiene enfocado en precio, gas y ganancia neta para ahorrar lectura en pantalla.
-* **🌎 Soporte Regional Adaptable:** Admite múltiples monedas (CLP, USD, COP, MXN, EUR, etc.) y unidades regionales (KM/Millas, Litros/Galones, KM/L, MPG) sin alterar la lógica interna.
+- **Registro explícito del plugin:** `MainActivity` ahora registra `VerdiPlugin` antes de inicializar el bridge, garantizando compatibilidad en todos los dispositivos Android.
+- **Debounce de estado "Ninguna":** Elimina falsos resets durante transiciones entre apps. El conductor puede cambiar entre Cabify y Verdi sin perder el estado de conexión.
+- **Replay de estado en carga:** Al abrir Verdi tras haber activado Cabify, el plugin sincroniza el estado inmediatamente en lugar de esperar el próximo ciclo de polling.
+- **Badges de instalación en tiempo real:** Uber, DiDi y Cabify muestran correctamente "Instalado" o "No instalado" actualizados cada 2 segundos.
 
 ---
 
