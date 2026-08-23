@@ -64,6 +64,11 @@ gantt
     Eliminación tasa horaria del overlay      :done, s10c, 2026-08-15, 1d
     Persistencia estado off del overlay       :done, s10d, 2026-08-15, 1d
     Ignorar updates si bubble deshabilitado   :done, s10e, 2026-08-15, 1d
+
+    section Sprint 11: Color de Burbuja y Panel de Detalle
+    Fix try-catch aislado por operación      :done, s11a, 2026-08-23, 1d
+    Labels del panel siempre actualizados    :done, s11b, 2026-08-23, 1d
+    Locale.US en formateo de labels          :done, s11c, 2026-08-23, 1d
 ```
 
 ---
@@ -144,3 +149,11 @@ gantt
   * **Detalle del overlay más legible:** Se elimina la línea de `Tasa Horaria` del panel expandido para mantener el foco en gasto y ganancia neta, reduciendo ruido visual y mejorando la lectura rápida.
   * **Estado off persistente del overlay:** Se guarda el estado `bubble_enabled` en `SharedPreferences` y se evita que el servicio vuelva a activarse de forma espontánea tras apretar `Detener` o `Apagar semáforo`.
   * **Ignorar updates mientras está deshabilitado:** El servicio omite `updateBubble()` cuando el bubble está apagado manualmente, evitando la reactivación por eventos nativos o viajes en segundo plano.
+
+### Sprint 11: Color de Burbuja y Panel de Detalle (23 Ago)
+* **Objetivo:** Resolver de forma definitiva que la burbuja no cambiaba de color al recibir viajes y que el Verdi Detalle (panel expandido) siempre mostraba guiones en lugar de los datos reales.
+* **Hitos alcanzados:**
+  * **Fix causa raíz del color:** El único `try-catch` que envolvía toda la función `updateBubbleState()` capturaba silenciosamente la excepción que lanzaba `windowManager.updateViewLayout()` cuando el `bubbleLayout` estaba desconectado del WindowManager (escenario frecuente tras reinicio del servicio), abortando el redibujado antes de que el color se aplicara.
+  * **Aislamiento de operaciones en bloques independientes:** Se separó `updateBubbleState()` en tres bloques `try-catch` autónomos: (1) actualización de labels del panel, (2) cambio de color y emoji de la burbuja, (3) `windowManager.updateViewLayout()`. Cada bloque falla de forma controlada sin contaminar los demás.
+  * **Labels del panel siempre actualizados:** Al posicionar la actualización de `textPrice`, `textFuel` y `textProfit` como primer paso (antes de cualquier operación con el WindowManager), los datos del viaje se muestran siempre en el Verdi Detalle independientemente de si el `updateViewLayout` falla o no.
+  * **Locale explícito en formateo:** Se añadió `Locale.US` al `String.format` de los labels del panel para garantizar el separador de miles correcto sin importar el idioma configurado en el dispositivo.
