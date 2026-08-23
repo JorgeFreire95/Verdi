@@ -402,15 +402,25 @@ class FloatingBubbleService : Service() {
         val colorToApply = stateColor // capture before posting to avoid race conditions
         // Run UI updates on the main thread loop
         Handler(Looper.getMainLooper()).post {
+            // 1. Always update panel labels first — isolated so they never get skipped
             try {
-                // Safely update bubble background color using mutate()
+                val cleanCur = "$ "
+                textPrice.text = String.format(Locale.US, "Precio Oferta: %s%,.0f", cleanCur, price)
+                textFuel.text = String.format(Locale.US, "Gasto Gasolina: %s%,.0f", cleanCur, fuel)
+                val netColor = if (net >= 0) "#10B981" else "#EF4444"
+                textProfit.setTextColor(Color.parseColor(netColor))
+                textProfit.text = String.format(Locale.US, "Ganancia Neta: %s%,.0f", cleanCur, net)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating panel labels", e)
+            }
+
+            // 2. Update bubble background color
+            try {
                 val shape = bubbleView.background?.mutate() as? GradientDrawable
                 if (shape != null) {
                     shape.setColor(Color.parseColor(colorToApply))
-                    // Re-apply to ensure view redraws
                     bubbleView.background = shape
                 } else {
-                    // Fallback to recreate background
                     val fallbackShape = GradientDrawable().apply {
                         this.shape = GradientDrawable.OVAL
                         setColor(Color.parseColor(colorToApply))
@@ -420,22 +430,18 @@ class FloatingBubbleService : Service() {
                 }
                 bubbleView.invalidate()
                 bubbleText.text = emoji
+            } catch (e: Exception) {
+                Log.e(TAG, "Error updating bubble color", e)
+            }
 
-                // Force window manager to redraw the overlay window layout
+            // 3. Force WindowManager to re-composite the overlay — isolated to avoid
+            //    crashing the above updates if the view was detached (e.g. after service restart)
+            try {
                 if (::windowManager.isInitialized && ::bubbleLayout.isInitialized) {
                     windowManager.updateViewLayout(bubbleLayout, params)
                 }
-                
-                // Update Panel labels with currency formatting
-                val cleanCur = if (currencyCode == "CLP" || currencyCode == "COP") "$ " else "$ "
-                textPrice.text = String.format("Precio Oferta: %s%,.0f", cleanCur, price)
-                textFuel.text = String.format("Gasto Gasolina: %s%,.0f", cleanCur, fuel)
-                
-                val netColor = if (net >= 0) "#10B981" else "#EF4444"
-                textProfit.setTextColor(Color.parseColor(netColor))
-                textProfit.text = String.format("Ganancia Neta: %s%,.0f", cleanCur, net)
             } catch (e: Exception) {
-                Log.e(TAG, "Error updating bubble view background", e)
+                Log.w(TAG, "updateViewLayout failed (view may be detached): ${e.message}")
             }
         }
     }

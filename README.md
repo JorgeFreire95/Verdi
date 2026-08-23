@@ -105,6 +105,9 @@ gantt
     section Sprint 10: Estabilidad Final del Overlay
     Reset overlay a GRAPHITE y limpieza stale :done, s11, 2026-08-15, 1d
     Persistencia estado off y bloqueo reactivación :done, s12, 2026-08-15, 1d
+    section Sprint 11: Color de Burbuja y Detalle Correcto
+    Fix try-catch aislado por operación     :done, s13, 2026-08-23, 1d
+    Labels del panel siempre actualizados   :done, s14, 2026-08-23, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -138,9 +141,11 @@ gantt
   * **Sprint Goal:** Eliminar los estados stale del overlay, reforzar el apagado manual y simplificar el panel de detalle del conductor.
   * **Entregable:** APK con reset a `GRAPHITE` robusto, `bubble_enabled` persistente y panel de detalle sin tasa horaria.
 
----
+* **Sprint 11: Color de Burbuja y Panel de Detalle (1 día) — ✅ Completado**
+  * **Sprint Goal:** Resolver de forma definitiva que la burbuja flotante no cambiaba de color y que el Verdi Detalle siempre mostraba guiones (`--`) en lugar de los datos reales del viaje.
+  * **Entregable:** APK con burbuja que cambia de color correctamente en cada viaje y panel expandido que muestra precio, gasto de gasolina y ganancia neta reales.
 
-## ✨ Características Principales
+---
 
 * **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, extrayendo la tarifa, distancia y tiempo del viaje.
 * **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando si cumple con los objetivos de ingresos por distancia. Funciona de manera 100% local (sin depender de conexión a internet).
@@ -155,6 +160,21 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.11.0 — Sprint 11 (2026-08-23)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt` | La burbuja flotante no cambiaba de color al recibir un viaje. El único `try-catch` que envolvía toda la función `updateBubbleState()` capturaba silenciosamente la excepción que lanzaba `windowManager.updateViewLayout()` (cuando el `bubbleLayout` estaba desconectado del WindowManager tras un reinicio del servicio), abortando el redibujado y dejando la burbuja en el último color o en grafito. | Se aisló cada operación en su propio `try-catch`. Ahora `windowManager.updateViewLayout()` falla de forma controlada sin afectar el cambio de color del fondo de la burbuja. |
+| 2 | `FloatingBubbleService.kt` | El Verdi Detalle (panel expandido) siempre mostraba guiones `--` en lugar del precio, gasto de gasolina y ganancia neta reales. Las actualizaciones de `textPrice`, `textFuel` y `textProfit` estaban ubicadas **después** del `windowManager.updateViewLayout()` en el mismo `try-catch`: cuando ese call lanzaba excepción (Bug 1), los labels nunca llegaban a actualizarse. | Los labels del panel ahora se actualizan en el **primer bloque** (paso 1), antes de cualquier operación con el WindowManager, garantizando que siempre reflejen los datos del viaje capturado. |
+
+#### ✨ Mejoras
+- **Robustez del overlay por operación:** cada parte de `updateBubbleState()` (panel, color, WindowManager) está ahora blindada de forma independiente, de modo que un fallo aislado no contamina el resto de la actualización visual.
+- **Locale explícito en el formateo:** se añadió `Locale.US` al `String.format` de los labels del panel para garantizar el separador de miles correcto independientemente del idioma configurado en el dispositivo.
+
+---
 
 ### v1.10.0 — Sprint 10 (2026-08-15)
 
@@ -409,4 +429,6 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 16 | La burbuja y el panel del overlay quedaban "pegados" en rojo/verde aunque el viaje ya había terminado, y los siguientes viajes aparecían mal clasificados por un estado stale del último análisis | En `main.js` se reforzó el reset a `GRAPHITE`, se limpia el estado al cambiar de app y al volver a `Ninguna`, y se fuerza el borrado de la clave deduplicada al terminar el timer | ✅ Resuelto en v1.9 |
 | 17 | El detalle del overlay estaba saturado con la tasa horaria, haciendo la lectura más pesada y menos clara para el conductor | Se eliminó la línea `Tasa Horaria` del panel expandido en `FloatingBubbleService.kt` para priorizar gasto y ganancia neta | ✅ Resuelto en v1.10 |
 | 18 | La burbuja se apaga unos segundos y vuelve a encenderse sola, incluso después de pulsar “Detener” o “APAGAR SEMÁFORO” | Se reemplazó `START_STICKY` por `START_NOT_STICKY`, se guarda `bubble_enabled` en `SharedPreferences` y se ignora cualquier actualización si el usuario la ha desactivado manualmente | ✅ Resuelto en v1.10 |
+| 19 | La burbuja flotante no cambiaba de color al recibir un viaje — `windowManager.updateViewLayout()` lanzaba `IllegalArgumentException` cuando el `bubbleLayout` estaba desconectado del WindowManager (escenario habitual tras reinicio del servicio), y al estar todo dentro de un único `try-catch`, la excepción abortaba el redibujado antes de que el color se aplicara | Se aisló cada operación en su propio `try-catch` en `FloatingBubbleService.kt`: primero se actualizan los labels del panel, luego el color de la burbuja, y por último el `updateViewLayout` — este último falla de forma controlada sin cancelar el resto | ✅ Resuelto en v1.11 |
+| 20 | El Verdi Detalle (panel expandido) siempre mostraba guiones `--` en lugar de precio, gasto y ganancia neta — los labels estaban posicionados **después** de `windowManager.updateViewLayout()` en el mismo `try-catch`; cuando ese call fallaba, los labels nunca se actualizaban | Se reordenó el bloque de `updateBubbleState()` para que la actualización de los labels del panel ocurra en el **primer paso**, antes de cualquier operación con el WindowManager | ✅ Resuelto en v1.11 |
 
