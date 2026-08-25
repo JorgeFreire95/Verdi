@@ -69,6 +69,11 @@ gantt
     Fix try-catch aislado por operación      :done, s11a, 2026-08-23, 1d
     Labels del panel siempre actualizados    :done, s11b, 2026-08-23, 1d
     Locale.US en formateo de labels          :done, s11c, 2026-08-23, 1d
+
+    section Sprint 12: Reactividad y Config del Conductor
+    Detección instantánea TYPE_CONTENT_CHANGED :done, s12a, 2026-08-24, 1d
+    Moneda dinámica desde config usuario       :done, s12b, 2026-08-24, 1d
+    Semáforo con doble umbral dist+hora        :done, s12c, 2026-08-24, 1d
 ```
 
 ---
@@ -157,3 +162,10 @@ gantt
   * **Aislamiento de operaciones en bloques independientes:** Se separó `updateBubbleState()` en tres bloques `try-catch` autónomos: (1) actualización de labels del panel, (2) cambio de color y emoji de la burbuja, (3) `windowManager.updateViewLayout()`. Cada bloque falla de forma controlada sin contaminar los demás.
   * **Labels del panel siempre actualizados:** Al posicionar la actualización de `textPrice`, `textFuel` y `textProfit` como primer paso (antes de cualquier operación con el WindowManager), los datos del viaje se muestran siempre en el Verdi Detalle independientemente de si el `updateViewLayout` falla o no.
   * **Locale explícito en formateo:** Se añadió `Locale.US` al `String.format` de los labels del panel para garantizar el separador de miles correcto sin importar el idioma configurado en el dispositivo.
+
+### Sprint 12: Reactividad Instantánea y Configuración del Conductor (24 Ago)
+* **Objetivo:** Eliminar el tiempo de reacción de más de 1 minuto al detectar solicitudes de viaje y corregir el panel de detalle para que use la moneda y los criterios de rentabilidad configurados por el conductor.
+* **Hitos alcanzados:**
+  * **Detección en milisegundos vía `TYPE_WINDOW_CONTENT_CHANGED`:** El escaneo de textos solo se ejecutaba cuando el `packageName` del evento era explícitamente de una app rideshare. Los eventos `TYPE_WINDOW_CONTENT_CHANGED` —los que se disparan cuando la pantalla cambia y aparece la oferta— llegaban frecuentemente con el `packageName` del shell del sistema, haciendo que el scan no se ejecutara en ese momento. Se corrigió consultando `rootInActiveWindow` como fallback: si el root pertenece a Uber/DiDi/Cabify, el scan se ejecuta en ese mismo evento sin esperar el siguiente ciclo.
+  * **Moneda dinámica en el panel de detalle:** El símbolo `"$ "` estaba hardcodeado en `FloatingBubbleService.updateBubbleState()`, ignorando por completo el `currencyCode` enviado desde la configuración del conductor. Se reemplazó por un mapa que convierte `CLP`, `COP`, `ARS`, `MXN`, `PEN`, `BRL`, `UYU`, `USD`, `EUR` a su símbolo o prefijo regional correcto.
+  * **Semáforo con doble umbral configurable:** La lógica de decisión solo evaluaba `minPerDistance` e ignoraba `minHourlyEarnings`. Ahora se calcula el porcentaje de cumplimiento de ambos umbrales y se toma el más estricto: Verde requiere cumplir tanto la meta por km como la meta por hora configuradas por el conductor.
