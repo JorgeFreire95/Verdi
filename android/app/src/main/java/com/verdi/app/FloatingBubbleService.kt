@@ -404,7 +404,19 @@ class FloatingBubbleService : Service() {
         Handler(Looper.getMainLooper()).post {
             // 1. Always update panel labels first — isolated so they never get skipped
             try {
-                val cleanCur = "$ "
+                // Use the currency symbol from user config, not a hardcoded "$"
+                val cleanCur = when (currencyCode.uppercase(Locale.US)) {
+                    "CLP" -> "CLP "
+                    "COP" -> "COP "
+                    "ARS" -> "ARS "
+                    "MXN" -> "MXN "
+                    "PEN" -> "S/ "
+                    "BRL" -> "R$ "
+                    "UYU" -> "UYU "
+                    "USD" -> "US$ "
+                    "EUR" -> "€"
+                    else  -> "$currencyCode "
+                }
                 textPrice.text = String.format(Locale.US, "Precio Oferta: %s%,.0f", cleanCur, price)
                 textFuel.text = String.format(Locale.US, "Gasto Gasolina: %s%,.0f", cleanCur, fuel)
                 val netColor = if (net >= 0) "#10B981" else "#EF4444"

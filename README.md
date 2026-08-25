@@ -108,6 +108,9 @@ gantt
     section Sprint 11: Color de Burbuja y Detalle Correcto
     Fix try-catch aislado por operación     :done, s13, 2026-08-23, 1d
     Labels del panel siempre actualizados   :done, s14, 2026-08-23, 1d
+    section Sprint 12: Reactividad y Config del Conductor
+    Detección en milisegundos TYPE_CONTENT_CHANGED :done, s15, 2026-08-24, 1d
+    Moneda y umbral horario desde config usuario   :done, s16, 2026-08-24, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -144,6 +147,9 @@ gantt
 * **Sprint 11: Color de Burbuja y Panel de Detalle (1 día) — ✅ Completado**
   * **Sprint Goal:** Resolver de forma definitiva que la burbuja flotante no cambiaba de color y que el Verdi Detalle siempre mostraba guiones (`--`) en lugar de los datos reales del viaje.
   * **Entregable:** APK con burbuja que cambia de color correctamente en cada viaje y panel expandido que muestra precio, gasto de gasolina y ganancia neta reales.
+* **Sprint 12: Reactividad Instantánea y Configuración del Conductor (1 día) — ✅ Completado**
+  * **Sprint Goal:** Eliminar el tiempo de reacción de >1 minuto al detectar solicitudes de viaje y corregir el panel de detalle para que use la moneda y los criterios configurados por el conductor.
+  * **Entregable:** APK con detección de viaje en milisegundos, moneda dinámica en el panel de detalle y lógica de semáforo basada en ambos umbrales configurados por el usuario (ganancia por km y ganancia horaria mínima).
 
 ---
 
@@ -160,6 +166,23 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.12.0 — Sprint 12 (2026-08-24)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | El tiempo de reacción al detectar una solicitud de viaje superaba 1 minuto, haciendo que la oferta ya hubiera desaparecido cuando el semáforo respondía. El escaneo de textos solo se disparaba si el `packageName` del evento de accesibilidad pertenecía explícitamente a uber/didi/cabify. Los eventos `TYPE_WINDOW_CONTENT_CHANGED` — que son los que se disparan cuando el contenido de la pantalla cambia y la oferta aparece — frecuentemente llegan con el `packageName` del shell del sistema, no de la app, por lo que el scan nunca se ejecutaba en ese momento. | El método ahora también consulta `rootInActiveWindow` para identificar qué app está realmente en primer plano cuando el `pkg` del evento no es rideshare. Si el root pertenece a Uber/DiDi/Cabify, el escaneo se ejecuta de inmediato en ese mismo evento, reaccionando en milisegundos. |
+| 2 | `FloatingBubbleService.kt` | El símbolo de moneda en el panel de detalle de la burbuja siempre mostraba `"$ "` (dólar americano), ignorando por completo la moneda configurada por el conductor (`CLP`, `COP`, `ARS`, `MXN`, `PEN`, `BRL`, `EUR`, etc.). | Se reemplazó el símbolo hardcodeado por una función que mapea el `currencyCode` recibido desde la configuración del usuario al símbolo o prefijo correcto para cada moneda soportada. |
+| 3 | `VerdiAccessibilityService.kt` | La lógica de decisión del semáforo (Verde / Amarillo / Rojo) solo evaluaba el criterio de ganancia mínima por distancia (`minPerDistance`), ignorando completamente el criterio de ganancia horaria mínima (`minHourlyEarnings`) que el conductor configura en Ajustes. | La decisión ahora calcula el porcentaje de cumplimiento de **ambos** umbrales y usa el más estricto: un viaje solo es Verde si la ganancia por km **y** la ganancia horaria superan la meta configurada. |
+
+#### ✨ Mejoras
+- **Reactividad de milisegundos:** El semáforo responde a la oferta de viaje en el mismo evento de sistema en que la pantalla cambia, sin esperar a que llegue un segundo evento favorable con el paquete correcto de la app.
+- **Moneda fiel a la región:** CLP, COP, ARS, MXN, PEN (S/), BRL (R$), UYU, USD y EUR se muestran con su símbolo correcto en el detalle de la burbuja.
+- **Semáforo más preciso:** El conductor que configure una meta horaria alta y una meta por km baja ya no obtendrá falsos verdes — ambos umbrales deben cumplirse simultáneamente.
+
+---
 
 ### v1.11.0 — Sprint 11 (2026-08-23)
 
@@ -431,4 +454,7 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 18 | La burbuja se apaga unos segundos y vuelve a encenderse sola, incluso después de pulsar “Detener” o “APAGAR SEMÁFORO” | Se reemplazó `START_STICKY` por `START_NOT_STICKY`, se guarda `bubble_enabled` en `SharedPreferences` y se ignora cualquier actualización si el usuario la ha desactivado manualmente | ✅ Resuelto en v1.10 |
 | 19 | La burbuja flotante no cambiaba de color al recibir un viaje — `windowManager.updateViewLayout()` lanzaba `IllegalArgumentException` cuando el `bubbleLayout` estaba desconectado del WindowManager (escenario habitual tras reinicio del servicio), y al estar todo dentro de un único `try-catch`, la excepción abortaba el redibujado antes de que el color se aplicara | Se aisló cada operación en su propio `try-catch` en `FloatingBubbleService.kt`: primero se actualizan los labels del panel, luego el color de la burbuja, y por último el `updateViewLayout` — este último falla de forma controlada sin cancelar el resto | ✅ Resuelto en v1.11 |
 | 20 | El Verdi Detalle (panel expandido) siempre mostraba guiones `--` en lugar de precio, gasto y ganancia neta — los labels estaban posicionados **después** de `windowManager.updateViewLayout()` en el mismo `try-catch`; cuando ese call fallaba, los labels nunca se actualizaban | Se reordenó el bloque de `updateBubbleState()` para que la actualización de los labels del panel ocurra en el **primer paso**, antes de cualquier operación con el WindowManager | ✅ Resuelto en v1.11 |
+| 21 | El tiempo de reacción al recibir una oferta de viaje superaba 1 minuto — los eventos `TYPE_WINDOW_CONTENT_CHANGED` (los que dispara la app cuando la oferta aparece en pantalla) llegaban con el `packageName` del shell del sistema, por lo que el escaneo de textos nunca se ejecutaba en ese momento y la solicitud ya había desaparecido cuando el semáforo reaccionaba | `VerdiAccessibilityService.kt` ahora usa `rootInActiveWindow` como fallback para identificar la app real cuando el `pkg` del evento no es rideshare, y ejecuta el scan inmediatamente | ✅ Resuelto en v1.12 |
+| 22 | El símbolo de moneda en el panel de detalle de la burbuja siempre mostraba `"$ "` (dólar), ignorando la moneda configurada por el conductor (CLP, COP, ARS, etc.) | Se mapeó `currencyCode` al símbolo regional correcto en `FloatingBubbleService.kt` | ✅ Resuelto en v1.12 |
+| 23 | El semáforo solo evaluaba `minPerDistance` e ignoraba `minHourlyEarnings`, generando falsos verdes en viajes con buena tarifa por km pero poca ganancia por hora | La decisión en `VerdiAccessibilityService.kt` ahora calcula el porcentaje de cumplimiento de ambos umbrales y usa el más estricto | ✅ Resuelto en v1.12 |
 

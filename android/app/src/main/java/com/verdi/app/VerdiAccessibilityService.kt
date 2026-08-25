@@ -221,35 +221,49 @@ class VerdiAccessibilityService : AccessibilityService() {
         }
 
         // ── Content scan for rideshare apps ──
-        if (pkg.contains("uber", ignoreCase = true) ||
+        // Trigger on ANY event type (WINDOW_STATE_CHANGED, WINDOW_CONTENT_CHANGED, etc.)
+        // so we react instantly when a trip request appears — even mid-screen updates.
+        val pkgToScan = if (pkg.contains("uber", ignoreCase = true) ||
             pkg.contains("didi", ignoreCase = true) ||
             pkg.contains("cabify", ignoreCase = true)
         ) {
-            Log.d(TAG, "🚗 Scanning active app package $pkg")
-            val cleanName = pkgToAppName(pkg)
+            pkg
+        } else if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+            eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            // Fallback: use the root window's package to catch events that arrive
+            // with a system/shell package name while a rideshare app is in front.
+            val root = rootInActiveWindow
+            val rootPkg = root?.packageName?.toString().also { root?.recycle() }
+            if (!rootPkg.isNullOrBlank() && (
+                rootPkg.contains("uber", ignoreCase = true) ||
+                rootPkg.contains("didi", ignoreCase = true) ||
+                rootPkg.contains("cabify", ignoreCase = true))
+            ) rootPkg else null
+        } else null
+
+        if (pkgToScan != null) {
+            Log.d(TAG, "🚗 Scanning active app package $pkgToScan (event=$eventTypeStr)")
+            val cleanName = pkgToAppName(pkgToScan)
             if (cleanName != null && cleanName != activeApp) {
                 Log.d(TAG, "  └─ App change detected: $cleanName")
                 commitActiveApp(cleanName)
             }
 
-            notifyAppConnected(pkg)
+            notifyAppConnected(pkgToScan)
 
             val rootNode = rootInActiveWindow
             if (rootNode == null) {
-                Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkg")
+                Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkgToScan")
                 return
             }
             
-            // Log root node info for debugging
             Log.d(TAG, "  └─ Root node packageName: ${rootNode.packageName}")
-            Log.d(TAG, "  └─ Root node className: ${rootNode.className}")
             Log.d(TAG, "  └─ Root node childCount: ${rootNode.childCount}")
             
             val texts = ArrayList<String>()
             findTextNodes(rootNode, texts)
             Log.d(TAG, "  └─ Collected ${texts.size} text nodes from tree")
             
-            // Log all collected texts for debugging
             if (texts.isNotEmpty()) {
                 texts.forEachIndexed { idx, text ->
                     if (text.isNotBlank()) {
@@ -576,15 +590,18 @@ class VerdiAccessibilityService : AccessibilityService() {
         val hourlyRate = if (hours > 0) (netProfit / hours) else 0.0
         val distanceRate = if (distance > 0) (netProfit / distance) else 0.0
 
-        // Decision logic
+        // Decision logic — use BOTH user-configured thresholds
         var decision = "RED"
         if (netProfit > 0) {
-            val pctDist = distanceRate / minPerDistance.toDouble()
-            Log.d(TAG, "   NetProfit: \$$netProfit | DistRate: \$${String.format("%.0f", distanceRate)}/km | MinRequired: \$${minPerDistance}/km | %: ${String.format("%.1f", pctDist*100)}%")
+            val pctDist   = distanceRate / minPerDistance.toDouble()
+            val pctHourly = if (minHourlyEarnings > 0) hourlyRate / minHourlyEarnings.toDouble() else 1.0
+            Log.d(TAG, "   NetProfit: \$$netProfit | DistRate: \$${String.format("%.0f", distanceRate)}/km (${String.format("%.1f", pctDist*100)}%) | HourlyRate: \$${String.format("%.0f", hourlyRate)}/hr (${String.format("%.1f", pctHourly*100)}%)")
 
-            if (pctDist >= 1.0) {
+            // Both thresholds must pass for GREEN; use the stricter (lower) ratio for YELLOW
+            val minPct = minOf(pctDist, pctHourly)
+            if (minPct >= 1.0) {
                 decision = "GREEN"
-            } else if (pctDist >= 0.7) {
+            } else if (minPct >= 0.7) {
                 decision = "YELLOW"
             }
         } else {
