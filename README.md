@@ -111,6 +111,9 @@ gantt
     section Sprint 12: Reactividad y Config del Conductor
     Detección en milisegundos TYPE_CONTENT_CHANGED :done, s15, 2026-08-24, 1d
     Moneda y umbral horario desde config usuario   :done, s16, 2026-08-24, 1d
+    section Sprint 13: Race Condition y Redibujado Garantizado
+    Fix race condition en updateBubble companion   :done, s17, 2026-08-25, 1d
+    Redibujado de color con drawable nuevo siempre :done, s18, 2026-08-25, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -150,6 +153,9 @@ gantt
 * **Sprint 12: Reactividad Instantánea y Configuración del Conductor (1 día) — ✅ Completado**
   * **Sprint Goal:** Eliminar el tiempo de reacción de >1 minuto al detectar solicitudes de viaje y corregir el panel de detalle para que use la moneda y los criterios configurados por el conductor.
   * **Entregable:** APK con detección de viaje en milisegundos, moneda dinámica en el panel de detalle y lógica de semáforo basada en ambos umbrales configurados por el usuario (ganancia por km y ganancia horaria mínima).
+* **Sprint 13: Race Condition y Redibujado Garantizado (1 día) — ✅ Completado**
+  * **Sprint Goal:** Eliminar dos regresiones persistentes: la burbuja que seguía sin cambiar de color en ciertos arranques del servicio, y el panel de detalle que aún mostraba datos de un viaje anterior en lugar del viaje recién capturado.
+  * **Entregable:** APK con redibujado de color garantizado mediante `GradientDrawable` nuevo en cada actualización y sin race condition en la asignación de `instance` del companion object.
 
 ---
 
@@ -166,6 +172,21 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.13.0 — Sprint 13 (2026-08-25)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt` | La burbuja seguía sin cambiar de color en ciertos reinicios del servicio. `mutate()` sobre el `GradientDrawable` existente no garantizaba el redibujado en todas las versiones de Android, y el `windowManager.updateViewLayout` que lo forzaba podía fallar y cortar el flujo antes de que el nuevo color se aplicara. | Se reemplaza `mutate()` por la creación de un `GradientDrawable` completamente nuevo en cada llamada. Adicionalmente se invoca `bubbleLayout.invalidate()` + `bubbleLayout.requestLayout()` para garantizar que el `WindowManager` recomponga el overlay incluso si `updateViewLayout` falla. |
+| 2 | `FloatingBubbleService.kt` | **Race condition** en `updateBubble` del companion object: si `instance` pasaba de no-null a null justo entre el `if (instance != null)` y el `instance?.updateBubbleState(...)`, la llamada era un no-op silencioso pero `pendingState` se limpiaba de todas formas, perdiendo el estado del viaje. El panel mostraba los datos del viaje anterior en la siguiente apertura. | Se captura `instance` en una variable local `inst` (Kotlin smart-cast) antes de usarla. Si `inst` es no-null se llama directamente sin posibilidad de que otro hilo anule la referencia entre la comprobación y el uso. |
+
+#### ✨ Mejoras
+- **Redibujado 100% garantizado:** ya no depende del estado interno del drawable anterior ni del éxito de `updateViewLayout`.
+- **Datos del panel siempre frescos:** el panel expandido muestra precio, gasto y ganancia neta del viaje más reciente sin posibilidad de mostrar datos del viaje previo.
+
+---
 
 ### v1.12.0 — Sprint 12 (2026-08-24)
 
@@ -457,4 +478,5 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 21 | El tiempo de reacción al recibir una oferta de viaje superaba 1 minuto — los eventos `TYPE_WINDOW_CONTENT_CHANGED` (los que dispara la app cuando la oferta aparece en pantalla) llegaban con el `packageName` del shell del sistema, por lo que el escaneo de textos nunca se ejecutaba en ese momento y la solicitud ya había desaparecido cuando el semáforo reaccionaba | `VerdiAccessibilityService.kt` ahora usa `rootInActiveWindow` como fallback para identificar la app real cuando el `pkg` del evento no es rideshare, y ejecuta el scan inmediatamente | ✅ Resuelto en v1.12 |
 | 22 | El símbolo de moneda en el panel de detalle de la burbuja siempre mostraba `"$ "` (dólar), ignorando la moneda configurada por el conductor (CLP, COP, ARS, etc.) | Se mapeó `currencyCode` al símbolo regional correcto en `FloatingBubbleService.kt` | ✅ Resuelto en v1.12 |
 | 23 | El semáforo solo evaluaba `minPerDistance` e ignoraba `minHourlyEarnings`, generando falsos verdes en viajes con buena tarifa por km pero poca ganancia por hora | La decisión en `VerdiAccessibilityService.kt` ahora calcula el porcentaje de cumplimiento de ambos umbrales y usa el más estricto | ✅ Resuelto en v1.12 |
-
+| 24 | La burbuja seguía sin cambiar de color tras los fixes anteriores — `mutate()` sobre el `GradientDrawable` existente no garantizaba redibujado en todas las versiones de Android; el `updateViewLayout` que lo forzaba podía fallar y cortar el flujo antes de que el color se aplicara | Se crea un `GradientDrawable` nuevo en cada actualización y se agrega `bubbleLayout.invalidate()` + `bubbleLayout.requestLayout()` en `FloatingBubbleService.kt` para un redibujado garantizado | ✅ Resuelto en v1.13 |
+| 25 | Race condition en `updateBubble` del companion object: si `instance` se volvía `null` justo entre el `if (instance != null)` y el `instance?.updateBubbleState(...)`, el call era un no-op silencioso pero `pendingState` se limpiaba igualmente, haciendo que el panel mostrara datos del viaje previo en la siguiente apertura | Se captura `instance` en una variable local `inst` antes de usarla, eliminando la ventana de race condition | ✅ Resuelto en v1.13 |
