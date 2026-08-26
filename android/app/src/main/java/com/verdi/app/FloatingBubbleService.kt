@@ -55,8 +55,9 @@ class FloatingBubbleService : Service() {
                 return
             }
 
-            if (instance != null) {
-                instance?.updateBubbleState(decision, price, fuel, net, hourly, currency)
+            val inst = instance
+            if (inst != null) {
+                inst.updateBubbleState(decision, price, fuel, net, hourly, currency)
                 pendingState = null
                 return
             }
@@ -428,20 +429,18 @@ class FloatingBubbleService : Service() {
 
             // 2. Update bubble background color
             try {
-                val shape = bubbleView.background?.mutate() as? GradientDrawable
-                if (shape != null) {
-                    shape.setColor(Color.parseColor(colorToApply))
-                    bubbleView.background = shape
-                } else {
-                    val fallbackShape = GradientDrawable().apply {
-                        this.shape = GradientDrawable.OVAL
-                        setColor(Color.parseColor(colorToApply))
-                        setStroke(dpToPx(3), Color.WHITE)
-                    }
-                    bubbleView.background = fallbackShape
+                // Always recreate the drawable to avoid mutate() issues on some Android versions
+                val newShape = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(Color.parseColor(colorToApply))
+                    setStroke(dpToPx(3), Color.WHITE)
                 }
+                bubbleView.background = newShape
                 bubbleView.invalidate()
                 bubbleText.text = emoji
+                // Force root container to redraw the overlay
+                bubbleLayout.invalidate()
+                bubbleLayout.requestLayout()
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating bubble color", e)
             }
