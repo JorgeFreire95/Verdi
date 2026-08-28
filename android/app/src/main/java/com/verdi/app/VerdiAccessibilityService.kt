@@ -480,6 +480,7 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         val commaCount = t.count { it == ',' }
         val dotCount = t.count { it == '.' }
+        val isNoDecimalsCurrency = currency.equals("CLP", ignoreCase = true) || currency.equals("COP", ignoreCase = true)
 
         if (commaCount > 0 && dotCount > 0) {
             if (t.lastIndexOf(',') > t.lastIndexOf('.')) {
@@ -489,14 +490,22 @@ class VerdiAccessibilityService : AccessibilityService() {
                 t = t.replace(",", "")
             }
         } else if (commaCount > 0) {
-            if (commaCount == 1 && t.substringAfter(',').length <= 2) {
+            if (commaCount == 1 && t.substringAfter(',').length <= 2 && !isNoDecimalsCurrency) {
                 t = t.replace(",", ".")
             } else {
                 t = t.replace(",", "")
             }
         } else {
-            if (dotCount > 1) {
+            if (dotCount > 1 || (dotCount == 1 && isNoDecimalsCurrency)) {
                 t = t.replace(".", "")
+            } else if (dotCount == 1) {
+                // If it is a single dot, check if it could be a thousands separator.
+                // In Spanish, thousands separator is dot (e.g. 8.500). If it has exactly 3 digits after the dot,
+                // and it is not followed by anything, it is very likely a thousands separator.
+                val afterDot = t.substringAfter('.')
+                if (afterDot.length == 3) {
+                    t = t.replace(".", "")
+                }
             }
         }
 

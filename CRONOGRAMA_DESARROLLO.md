@@ -74,6 +74,16 @@ gantt
     Detección instantánea TYPE_CONTENT_CHANGED :done, s12a, 2026-08-24, 1d
     Moneda dinámica desde config usuario       :done, s12b, 2026-08-24, 1d
     Semáforo con doble umbral dist+hora        :done, s12c, 2026-08-24, 1d
+
+    section Sprint 13: Race Condition y Redibujado Garantizado
+    Fix race condition en updateBubble companion   :done, s13a, 2026-08-25, 1d
+    Redibujado de color con drawable nuevo siempre :done, s13b, 2026-08-25, 1d
+    
+    section Sprint 14: Auto-reinicio, Parser y Persistencia Visual
+    Persistencia de bubble_enabled al apagar    :done, s14a, 2026-08-27, 1d
+    Auto-reinicio inteligente en WebView        :done, s14b, 2026-08-27, 1d
+    Parser miles en CLP/COP sin decimales       :done, s14c, 2026-08-27, 1d
+    Preservar visual de viaje si misma app      :done, s14d, 2026-08-27, 1d
 ```
 
 ---
@@ -169,3 +179,16 @@ gantt
   * **Detección en milisegundos vía `TYPE_WINDOW_CONTENT_CHANGED`:** El escaneo de textos solo se ejecutaba cuando el `packageName` del evento era explícitamente de una app rideshare. Los eventos `TYPE_WINDOW_CONTENT_CHANGED` —los que se disparan cuando la pantalla cambia y aparece la oferta— llegaban frecuentemente con el `packageName` del shell del sistema, haciendo que el scan no se ejecutara en ese momento. Se corrigió consultando `rootInActiveWindow` como fallback: si el root pertenece a Uber/DiDi/Cabify, el scan se ejecuta en ese mismo evento sin esperar el siguiente ciclo.
   * **Moneda dinámica en el panel de detalle:** El símbolo `"$ "` estaba hardcodeado en `FloatingBubbleService.updateBubbleState()`, ignorando por completo el `currencyCode` enviado desde la configuración del conductor. Se reemplazó por un mapa que convierte `CLP`, `COP`, `ARS`, `MXN`, `PEN`, `BRL`, `UYU`, `USD`, `EUR` a su símbolo o prefijo regional correcto.
   * **Semáforo con doble umbral configurable:** La lógica de decisión solo evaluaba `minPerDistance` e ignoraba `minHourlyEarnings`. Ahora se calcula el porcentaje de cumplimiento de ambos umbrales y se toma el más estricto: Verde requiere cumplir tanto la meta por km como la meta por hora configuradas por el conductor.
+
+### Sprint 13: Race Condition y Redibujado Garantizado (25 Ago)
+* **Objetivo:** Eliminar regresiones de redibujado de la burbuja y race conditions en el traspaso de datos del viaje.
+* **Hitos alcanzados:**
+  * **Redibujado 100% garantizado de la burbuja:** Se reemplazó la mutación del drawable por la creación de un `GradientDrawable` totalmente nuevo en cada actualización, invocando además `invalidate()` y `requestLayout()` sobre el layout de la burbuja.
+  * **Eliminación de la race condition en `updateBubble`:** Se captura la referencia `@Volatile instance` en una variable local antes de usarla, previniendo que llamadas concurrentes anulen el puntero y causen que el panel detallado muestre información vieja.
+
+### Sprint 14: Auto-reinicio, Parser y Persistencia Visual (27 Ago)
+* **Objetivo:** Prevenir el reinicio no deseado de la burbuja nativa tras el apagado manual del semáforo, robustecer el parseo de precios con separadores de miles de un único punto en monedas sin decimales, y conservar el análisis de viaje frente a reconexiones del mismo app.
+* **Hitos alcanzados:**
+  * **Persistencia de apagado manual y control de ciclo de vida:** Modificado `FloatingBubbleService.kt` para persistir `bubble_enabled` en `false` al presionar desactivar nativamente. El plugin expone este estado a `main.js` para evitar el auto-reinicio indeseado en el ciclo de polling de permisos.
+  * **Parser de miles inteligente en CLP/COP:** Añadida lógica en `VerdiAccessibilityService.kt` que remueve el punto si es un único punto seguido de 3 dígitos (ej. `8.500`) en monedas sin decimales, evitando interpretarlo erróneamente como punto decimal.
+  * **Persistencia de estado visual de viaje:** En `main.js`, se restringió el borrado y reset de la UI al dispararse `onAppConnected` para que ocurra únicamente si la app activa ha cambiado. Esto mantiene visible el análisis del semáforo y las métricas de viaje en reconexiones del mismo app.

@@ -114,11 +114,14 @@ class VerdiPlugin : Plugin() {
 
         Log.d(TAG, "DEBUG checkPermissions: VerdiAccessibilityService.activeApp=${VerdiAccessibilityService.activeApp} lastConnectedApp=$validLastConnectedApp currentActiveApp=$currentActiveApp")
         
+        val bubbleEnabled = prefs.getBoolean("bubble_enabled", false)
+
         val ret = JSObject()
         ret.put("overlay", overlayGranted)
         ret.put("accessibility", accessibilityGranted)
         ret.put("isServiceRunning", VerdiAccessibilityService.isServiceRunning)
         ret.put("isBubbleRunning", FloatingBubbleService.isRunning)
+        ret.put("bubbleEnabled", bubbleEnabled)
         ret.put("activeApp", currentActiveApp)
         ret.put("lastConnectedApp", validLastConnectedApp)
         ret.put("uberInstalled", uberInstalled)

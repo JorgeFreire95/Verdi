@@ -114,6 +114,11 @@ gantt
     section Sprint 13: Race Condition y Redibujado Garantizado
     Fix race condition en updateBubble companion   :done, s17, 2026-08-25, 1d
     Redibujado de color con drawable nuevo siempre :done, s18, 2026-08-25, 1d
+    section Sprint 14: Auto-reinicio, Parser y Persistencia Visual
+    Persistencia de bubble_enabled al apagar    :done, s19, 2026-08-27, 1d
+    Auto-reinicio inteligente en WebView        :done, s20, 2026-08-27, 1d
+    Parser miles en CLP/COP sin decimales       :done, s21, 2026-08-27, 1d
+    Preservar visual de viaje si misma app      :done, s22, 2026-08-27, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -156,6 +161,9 @@ gantt
 * **Sprint 13: Race Condition y Redibujado Garantizado (1 día) — ✅ Completado**
   * **Sprint Goal:** Eliminar dos regresiones persistentes: la burbuja que seguía sin cambiar de color en ciertos arranques del servicio, y el panel de detalle que aún mostraba datos de un viaje anterior en lugar del viaje recién capturado.
   * **Entregable:** APK con redibujado de color garantizado mediante `GradientDrawable` nuevo en cada actualización y sin race condition en la asignación de `instance` del companion object.
+* **Sprint 14: Auto-reinicio, Parser y Persistencia Visual (1 día) — ✅ Completado**
+  * **Sprint Goal:** Resolver el auto-reinicio indeseado de la burbuja flotante tras apagado manual, optimizar la lectura de precios en monedas sin decimales (CLP/COP) cuando traen separadores de miles de un punto (ej: `8.500`), y evitar que el estado visual del viaje se limpie en reconexiones del mismo app.
+  * **Entregable:** APK con persistencia de apagado manual (`bubble_enabled`), auto-reinicio inteligente condicionado a la preferencia nativa, parser adaptado a monedas sin decimales y lógica de retención de visuales en el WebView.
 
 ---
 
@@ -172,6 +180,24 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.14.0 — Sprint 14 (2026-08-27)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `FloatingBubbleService.kt` | La burbuja se auto-reiniciaba sola tras haberla apagado desde el panel de detalle nativo, ya que la preferencia `bubble_enabled` en SharedPreferences no se actualizaba a `false` al presionar el botón de desactivar en la UI flotante. | Se actualiza `bubble_enabled` a `false` en `SharedPreferences` mediante `commit()` inmediatamente en el evento de click del botón de desactivación. |
+| 2 | `main.js`, `VerdiPlugin.kt` | El WebView decidía el auto-reinicio del servicio basándose únicamente en `STATE.bubbleActive`. Si el servicio era detenido legítimamente, el WebView lo re-arrancaba de forma errónea en el siguiente ciclo de polling de permisos. | Se expone la preferencia nativa `bubbleEnabled` en el retorno de `checkPermissions` de `VerdiPlugin.kt` y se usa en `main.js` para condicionar el auto-reinicio solo si la burbuja estaba habilitada activamente. |
+| 3 | `VerdiAccessibilityService.kt` | Fallos de parseo en tarifas de Uber en CLP/COP (ej: `8.500`). El parser interpretaba el único punto como punto decimal (`8.5`), mientras que en estas monedas representa un separador de miles (`8500`). | Se implementó validación de monedas sin decimales (`CLP`/`COP`). Si la moneda es una de estas y tiene un único punto seguido de 3 dígitos (ej. `.500`), se remueve el punto para parsearlo correctamente como miles. |
+| 4 | `main.js` | El semáforo y los datos visuales del viaje se borraban de inmediato si la misma aplicación volvía a disparar un evento de conexión (como enfocar la app o eventos recurrentes sin cambiar de app). | Se restringe el reseteo y borrado de la UI en `onAppConnected` para que ocurra únicamente si el nombre de la app activa realmente cambió (`appChanged`). |
+
+#### ✨ Mejoras
+- **Control de ciclo de vida robusto:** Cierre definitivo de la burbuja respetado ante recargas del WebView o loops de comprobación de permisos.
+- **Parser numérico ultra-preciso en LATAM:** Detección y conversión perfecta de tarifas regionales sin deformar los montos.
+- **Visualización estable del análisis:** El semáforo y datos del viaje se mantienen firmes y legibles en pantalla mientras el conductor esté usando la misma aplicación de transporte.
+
+---
 
 ### v1.13.0 — Sprint 13 (2026-08-25)
 
@@ -480,3 +506,6 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 23 | El semáforo solo evaluaba `minPerDistance` e ignoraba `minHourlyEarnings`, generando falsos verdes en viajes con buena tarifa por km pero poca ganancia por hora | La decisión en `VerdiAccessibilityService.kt` ahora calcula el porcentaje de cumplimiento de ambos umbrales y usa el más estricto | ✅ Resuelto en v1.12 |
 | 24 | La burbuja seguía sin cambiar de color tras los fixes anteriores — `mutate()` sobre el `GradientDrawable` existente no garantizaba redibujado en todas las versiones de Android; el `updateViewLayout` que lo forzaba podía fallar y cortar el flujo antes de que el color se aplicara | Se crea un `GradientDrawable` nuevo en cada actualización y se agrega `bubbleLayout.invalidate()` + `bubbleLayout.requestLayout()` en `FloatingBubbleService.kt` para un redibujado garantizado | ✅ Resuelto en v1.13 |
 | 25 | Race condition en `updateBubble` del companion object: si `instance` se volvía `null` justo entre el `if (instance != null)` y el `instance?.updateBubbleState(...)`, el call era un no-op silencioso pero `pendingState` se limpiaba igualmente, haciendo que el panel mostrara datos del viaje previo en la siguiente apertura | Se captura `instance` en una variable local `inst` antes de usarla, eliminando la ventana de race condition | ✅ Resuelto en v1.13 |
+| 26 | La burbuja se auto-reiniciaba al apagarse desde el panel porque `bubble_enabled` no se actualizaba a `false` en `SharedPreferences` nativas, y el WebView la arrancaba nuevamente al comprobar permisos | Actualizado `bubble_enabled` a `false` en `SharedPreferences` con `commit()` en el click del botón nativo, y condicionado el auto-reinicio en `main.js` al valor de `bubbleEnabled` nativo | ✅ Resuelto en v1.14 |
+| 27 | Tarifas con miles expresados con un solo punto (ej. `8.500` CLP/COP) se parseaban erróneamente como centavos (`8.5`), arruinando el cálculo del semáforo | Identificación de monedas sin decimales (`CLP`/`COP`) y remoción del punto de miles si va seguido de exactamente 3 dígitos en `VerdiAccessibilityService.kt` | ✅ Resuelto en v1.14 |
+| 28 | El semáforo y los datos del viaje se borraban repentinamente si la app de transporte volvía a disparar conexión en segundo plano (sin cambiar de app) | Se limitó el borrado de UI en `onAppConnected` de `main.js` para ejecutarse solo ante un cambio real de la aplicación activa (`appChanged`) | ✅ Resuelto en v1.14 |

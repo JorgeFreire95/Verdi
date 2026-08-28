@@ -445,9 +445,12 @@ async function checkAndroidPermissions() {
     } else if (res.isBubbleRunning === true) {
       STATE.bubbleActive = true;
     } else if (res.isBubbleRunning === false) {
-      if (STATE.bubbleActive) {
-        // Servicio fue matado por Android pero el usuario lo tenía activo — reiniciar automáticamente
+      // Respect the native bubbleEnabled preference when deciding auto-restart.
+      // If it's false, it means the user intentionally closed/deactivated the bubble.
+      const shouldAutoRestart = res.bubbleEnabled !== undefined ? res.bubbleEnabled : STATE.bubbleActive;
+      if (shouldAutoRestart) {
         VerdiPlugin.toggleBubble({ active: true }).catch(err => console.warn('Auto-restart bubble failed:', err));
+        STATE.bubbleActive = true;
       } else {
         STATE.bubbleActive = false;
       }
@@ -917,8 +920,11 @@ function setupNativeListeners() {
         return;
       }
 
-      // Clear stale trip visuals when app changes or when app is no longer active.
-      clearTripDisplayState();
+      // Only clear trip visuals if the app actually changed
+      const appChanged = appName !== STATE.lastActiveApp;
+      if (appChanged) {
+        clearTripDisplayState();
+      }
       
       // FORCE UPDATE: immediately update UI
       console.log('[onAppConnected] 🚀 FORCING UI UPDATE for:', appName);
@@ -946,9 +952,11 @@ function setupNativeListeners() {
         }
       }, 200);
       
-      const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
-      if (timeSinceCapture > 8000) {
-        resetLiveUIToIdle();
+      if (appChanged) {
+        const timeSinceCapture = Date.now() - (STATE.lastCapturedTime || 0);
+        if (timeSinceCapture > 8000) {
+          resetLiveUIToIdle();
+        }
       }
     });
   } catch(err) {

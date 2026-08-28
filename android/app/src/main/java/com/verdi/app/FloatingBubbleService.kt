@@ -288,6 +288,8 @@ class FloatingBubbleService : Service() {
 
             setOnClickListener {
                 Log.d(TAG, "Deactivate button clicked - stopping FloatingBubbleService")
+                val prefs = getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("bubble_enabled", false).commit()
                 stopSelf()
             }
         }
