@@ -84,6 +84,11 @@ gantt
     Auto-reinicio inteligente en WebView        :done, s14b, 2026-08-27, 1d
     Parser miles en CLP/COP sin decimales       :done, s14c, 2026-08-27, 1d
     Preservar visual de viaje si misma app      :done, s14d, 2026-08-27, 1d
+
+    section Sprint 15: Lectura Real de Oferta Uber
+    Priorizar monto principal de la oferta      :done, s15a, 2026-09-03, 1d
+    Sumar retiro + viaje en métricas visibles   :done, s15b, 2026-09-03, 1d
+    Deduplicación por firma de oferta real      :done, s15c, 2026-09-03, 1d
 ```
 
 ---
@@ -192,3 +197,10 @@ gantt
   * **Persistencia de apagado manual y control de ciclo de vida:** Modificado `FloatingBubbleService.kt` para persistir `bubble_enabled` en `false` al presionar desactivar nativamente. El plugin expone este estado a `main.js` para evitar el auto-reinicio indeseado en el ciclo de polling de permisos.
   * **Parser de miles inteligente en CLP/COP:** Añadida lógica en `VerdiAccessibilityService.kt` que remueve el punto si es un único punto seguido de 3 dígitos (ej. `8.500`) en monedas sin decimales, evitando interpretarlo erróneamente como punto decimal.
   * **Persistencia de estado visual de viaje:** En `main.js`, se restringió el borrado y reset de la UI al dispararse `onAppConnected` para que ocurra únicamente si la app activa ha cambiado. Esto mantiene visible el análisis del semáforo y las métricas de viaje en reconexiones del mismo app.
+
+### Sprint 15: Lectura Real de Oferta Uber (03 Sep)
+* **Objetivo:** Corregir la lectura errónea del monto principal en Uber, evitar que el detalle del overlay use cifras ajenas al viaje y permitir que nuevas solicitudes similares se sigan evaluando sin quedar bloqueadas por deduplicación agresiva.
+* **Hitos alcanzados:**
+  * **Priorización del monto principal ofertado:** `VerdiAccessibilityService.kt` ahora arma y puntúa candidatos de precio para privilegiar el importe central del card de Uber, descartando mejor valores secundarios como tarifa por km, rating, medios de pago u otros números no tarifarios.
+  * **Composición de métricas pickup + viaje:** Cuando la pantalla muestra por separado el tramo de retiro y el tramo principal del viaje, ambos se combinan para calcular distancia total, tiempo total, gasto estimado de combustible y decisión del semáforo con mayor fidelidad.
+  * **Deduplicación por firma de oferta real:** Se reemplazó el cooldown global por una firma basada en la oferta detectada, y `main.js` alineó su clave de deduplicación a `precio + distancia`, evitando que solicitudes nuevas queden sin lectura o que la burbuja permanezca en grafito por un falso repetido.
