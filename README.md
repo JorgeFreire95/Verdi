@@ -119,6 +119,10 @@ gantt
     Auto-reinicio inteligente en WebView        :done, s20, 2026-08-27, 1d
     Parser miles en CLP/COP sin decimales       :done, s21, 2026-08-27, 1d
     Preservar visual de viaje si misma app      :done, s22, 2026-08-27, 1d
+    section Sprint 15: Lectura Real de Oferta Uber
+    Priorizar monto principal de la oferta      :done, s23, 2026-09-03, 1d
+    Sumar retiro + viaje en métricas visibles   :done, s24, 2026-09-03, 1d
+    Deduplicación por firma de oferta real      :done, s25, 2026-09-03, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -164,10 +168,13 @@ gantt
 * **Sprint 14: Auto-reinicio, Parser y Persistencia Visual (1 día) — ✅ Completado**
   * **Sprint Goal:** Resolver el auto-reinicio indeseado de la burbuja flotante tras apagado manual, optimizar la lectura de precios en monedas sin decimales (CLP/COP) cuando traen separadores de miles de un punto (ej: `8.500`), y evitar que el estado visual del viaje se limpie en reconexiones del mismo app.
   * **Entregable:** APK con persistencia de apagado manual (`bubble_enabled`), auto-reinicio inteligente condicionado a la preferencia nativa, parser adaptado a monedas sin decimales y lógica de retención de visuales en el WebView.
+* **Sprint 15: Lectura Real de Oferta Uber y Deduplicación Fina (1 día) — ✅ Completado**
+  * **Sprint Goal:** Corregir la lectura errónea del monto principal de Uber, evitar que el detalle de la burbuja use cifras ajenas al viaje y permitir que nuevas solicitudes similares vuelvan a analizarse sin quedar bloqueadas.
+  * **Entregable:** APK con parser que prioriza el precio principal de la oferta, suma retiro + viaje cuando ambos datos están presentes y usa deduplicación por firma real de oferta para no dejar viajes nuevos sin lectura.
 
 ---
 
-* **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, extrayendo la tarifa, distancia y tiempo del viaje.
+* **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, priorizando el monto principal ofertado y extrayendo tarifa, distancia y tiempo reales del viaje.
 * **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando si cumple con los objetivos de ingresos por distancia. Funciona de manera 100% local (sin depender de conexión a internet).
 * **🟢 Semáforo Inteligente:** Muestra de forma visual e inmediata la calidad del viaje:
   * **Verde (Rentable):** Cumple con la meta de ganancia por distancia.
@@ -180,6 +187,23 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.15.0 — Sprint 15 (2026-09-03)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | Uber podía leer mal el monto principal de la oferta y tomar cifras ajenas del card, como la tarifa por km, el rating o números secundarios, provocando que `Precio Oferta` y el color del semáforo quedaran mal calculados. | Se incorporó una selección de candidatos de precio con heurísticas contextuales que prioriza el importe principal visible de la oferta y penaliza montos asociados a `/km`, rating, medios de pago y otros textos no tarifarios. |
+| 2 | `VerdiAccessibilityService.kt` | Cuando Uber mostraba por separado el tramo de recogida y el tramo del viaje, Verdi no siempre componía correctamente la métrica total, generando cálculos incompletos en distancia y tiempo. | Se añadió extracción específica de segmentos `pickup` + `viaje`; si ambos están presentes, ahora se suman para evaluar el costo de combustible y la rentabilidad total de la solicitud. |
+| 3 | `VerdiAccessibilityService.kt`, `main.js` | Algunas solicitudes nuevas quedaban sin leerse y la burbuja permanecía en negro/grafito porque la deduplicación/cooldown trataba como repetida una oferta distinta o demasiado cercana a la anterior. | Se reemplazó el cooldown global por deduplicación por firma de oferta real en Android y se alineó la clave de deduplicación del WebView a `precio + distancia`, reduciendo falsos bloqueos y permitiendo capturar nuevas ofertas con más consistencia. |
+
+#### ✨ Mejoras
+- **Precio Oferta fiel a Uber:** el panel expandido de la burbuja muestra el monto principal realmente ofertado al conductor, evitando cifras colaterales del card.
+- **Cálculo más realista de combustible:** cuando la pantalla expone retiro y viaje por separado, ambos tramos se consideran en el análisis.
+- **Lectura continua de solicitudes:** el sistema tolera mejor ofertas consecutivas similares sin dejar viajes nuevos sin analizar.
+
+---
 
 ### v1.14.0 — Sprint 14 (2026-08-27)
 
@@ -509,3 +533,4 @@ $adb = "$env:LOCALAPPDATA\Android\Sdk\platform-tools\adb.exe"
 | 26 | La burbuja se auto-reiniciaba al apagarse desde el panel porque `bubble_enabled` no se actualizaba a `false` en `SharedPreferences` nativas, y el WebView la arrancaba nuevamente al comprobar permisos | Actualizado `bubble_enabled` a `false` en `SharedPreferences` con `commit()` en el click del botón nativo, y condicionado el auto-reinicio en `main.js` al valor de `bubbleEnabled` nativo | ✅ Resuelto en v1.14 |
 | 27 | Tarifas con miles expresados con un solo punto (ej. `8.500` CLP/COP) se parseaban erróneamente como centavos (`8.5`), arruinando el cálculo del semáforo | Identificación de monedas sin decimales (`CLP`/`COP`) y remoción del punto de miles si va seguido de exactamente 3 dígitos en `VerdiAccessibilityService.kt` | ✅ Resuelto en v1.14 |
 | 28 | El semáforo y los datos del viaje se borraban repentinamente si la app de transporte volvía a disparar conexión en segundo plano (sin cambiar de app) | Se limitó el borrado de UI en `onAppConnected` de `main.js` para ejecutarse solo ante un cambio real de la aplicación activa (`appChanged`) | ✅ Resuelto en v1.14 |
+| 29 | Uber podía leer mal el monto principal de la oferta y tomar cifras ajenas (rating, tarifa por km u otros números del card), dejando además algunas solicitudes nuevas sin procesar por una deduplicación demasiado agresiva | `VerdiAccessibilityService.kt` ahora prioriza el importe principal con heurísticas contextuales, suma retiro + viaje cuando ambos segmentos están visibles y reemplaza el cooldown global por una deduplicación por firma de oferta; `main.js` alinea su clave de deduplicación con precio+distancia para evitar relecturas espurias | ✅ Resuelto en v1.15 |

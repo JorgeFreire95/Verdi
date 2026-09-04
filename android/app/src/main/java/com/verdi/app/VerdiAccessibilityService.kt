@@ -38,8 +38,9 @@ class VerdiAccessibilityService : AccessibilityService() {
     private var fuelUnit = "L"
     private var consumptionUnit = "km_l"
 
+    private var lastCapturedSignature: String? = null
     private var lastCapturedTime = 0L
-    private val captureCooldown = 2000L // avoid spamming calculations within 2 seconds of the same trip
+    private val duplicateOfferWindowMs = 10000L
 
     private var lastNotifiedPkg = ""
     private var lastNotifiedTime = 0L
@@ -77,6 +78,18 @@ class VerdiAccessibilityService : AccessibilityService() {
         }
     }
     private val NOTIF_ID = 8421
+
+    private data class PriceCandidate(
+        val value: Double,
+        val score: Int,
+        val index: Int,
+        val source: String
+    )
+
+    private data class RouteSegment(
+        val distanceKm: Double,
+        val timeMins: Double
+    )
 
     private val configReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -514,73 +527,234 @@ class VerdiAccessibilityService : AccessibilityService() {
         return result
     }
 
+    private fun normalizeScreenText(raw: String): String {
+        return raw.replace(Regex("\\s+"), " ").trim()
+    }
+
+    private fun looksLikeStandaloneCurrencyToken(text: String): Boolean {
+        return Regex(
+            "^(CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£)$",
+            RegexOption.IGNORE_CASE
+        ).matches(text)
+    }
+
+    private fun looksLikeStandaloneAmount(text: String): Boolean {
+        return Regex("^[0-9][0-9.,]*$").matches(text)
+    }
+
+    private fun containsIgnoredMoneyContext(text: String): Boolean {
+        val lowered = text.lowercase()
+        return lowered.contains("/km") ||
+            lowered.contains("estimad") ||
+            lowered.contains("tarjeta") ||
+            lowered.contains("efectivo") ||
+            lowered.contains("cash") ||
+            lowered.contains("visa") ||
+            lowered.contains("master") ||
+            lowered.contains("rating") ||
+            lowered.contains("calificacion") ||
+            lowered.contains("calificación") ||
+            lowered.contains("★") ||
+            lowered.contains("⭐")
+    }
+
+    private fun scorePriceCandidate(
+        rawText: String,
+        value: Double,
+        index: Int,
+        standalone: Boolean,
+        pairedToken: Boolean
+    ): Int {
+        var score = 0
+        if (standalone) score += 140
+        if (pairedToken) score += 150
+        if (rawText.length <= 16) score += 15
+        if (index <= 8) score += (18 - (index * 2)).coerceAtLeast(0)
+        if (value >= 1000) score += 20
+        if (value >= 10000) score += 10
+        if (containsIgnoredMoneyContext(rawText)) score -= 180
+        if (!pairedToken && Regex("^[0-9]+[.,][0-9]{1,2}$").matches(rawText)) score -= 140
+        if (value < 10 && rawText.contains(Regex("[.,][0-9]{1,2}"))) score -= 120
+        return score
+    }
+
+    private fun collectPriceCandidates(texts: List<String>): List<PriceCandidate> {
+        val standalonePriceRegex = Regex(
+            "^(?:CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£)\\s*([0-9][0-9.,]*)$|^([0-9][0-9.,]*)\\s*(?:CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£)$",
+            RegexOption.IGNORE_CASE
+        )
+        val embeddedPriceRegex = Regex(
+            "(?:CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£)\\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\\s*(?:CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£)",
+            RegexOption.IGNORE_CASE
+        )
+
+        val candidates = mutableListOf<PriceCandidate>()
+
+        texts.forEachIndexed { index, text ->
+            standalonePriceRegex.matchEntire(text)?.let { match ->
+                val raw = match.groupValues.drop(1).firstOrNull { it.isNotBlank() }.orEmpty()
+                val parsed = parseFlexibleNumber(raw)
+                if (parsed != null) {
+                    candidates += PriceCandidate(
+                        value = parsed,
+                        score = scorePriceCandidate(text, parsed, index, standalone = true, pairedToken = false),
+                        index = index,
+                        source = text
+                    )
+                }
+            }
+
+            if (looksLikeStandaloneAmount(text)) {
+                val parsed = parseFlexibleNumber(text)
+                if (parsed != null && parsed >= 100) {
+                    val prev = texts.getOrNull(index - 1).orEmpty()
+                    val next = texts.getOrNull(index + 1).orEmpty()
+                    val paired = looksLikeStandaloneCurrencyToken(prev) || looksLikeStandaloneCurrencyToken(next)
+                    candidates += PriceCandidate(
+                        value = parsed,
+                        score = scorePriceCandidate(text, parsed, index, standalone = false, pairedToken = paired) +
+                            if (paired) 0 else 35,
+                        index = index,
+                        source = text
+                    )
+                }
+            }
+
+            embeddedPriceRegex.findAll(text).forEach { match ->
+                val raw = match.groupValues.drop(1).firstOrNull { it.isNotBlank() }.orEmpty()
+                val parsed = parseFlexibleNumber(raw)
+                if (parsed != null) {
+                    candidates += PriceCandidate(
+                        value = parsed,
+                        score = scorePriceCandidate(text, parsed, index, standalone = false, pairedToken = false),
+                        index = index,
+                        source = text
+                    )
+                }
+            }
+        }
+
+        return candidates
+    }
+
+    private fun parseDistanceKm(raw: String): Double? {
+        return raw.replace(",", ".").toDoubleOrNull()
+    }
+
+    private fun parseDurationToMinutes(rawValue: String, rawUnit: String): Double? {
+        val base = rawValue.replace(",", ".").toDoubleOrNull() ?: return null
+        return when (rawUnit.lowercase()) {
+            "hr", "h", "hora", "horas" -> base * 60.0
+            else -> base
+        }
+    }
+
+    private fun extractRouteMetrics(texts: List<String>): Pair<Double?, Double?> {
+        val joinedText = texts.joinToString("\n")
+        val pickupRegex = Pattern.compile(
+            "(?:^|\\n)\\s*(?:a|en)\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)",
+            Pattern.CASE_INSENSITIVE
+        )
+        val tripRegex = Pattern.compile(
+            "viaje\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)",
+            Pattern.CASE_INSENSITIVE
+        )
+
+        var pickupSegment: RouteSegment? = null
+        val pickupMatcher = pickupRegex.matcher(joinedText)
+        if (pickupMatcher.find()) {
+            val timeMins = parseDurationToMinutes(pickupMatcher.group(1).orEmpty(), pickupMatcher.group(2).orEmpty())
+            val distanceKm = parseDistanceKm(pickupMatcher.group(3).orEmpty())
+            if (timeMins != null && distanceKm != null) {
+                pickupSegment = RouteSegment(distanceKm, timeMins)
+                Log.d(TAG, "  🚕 Pickup segment: ${pickupSegment.timeMins} min / ${pickupSegment.distanceKm} km")
+            }
+        }
+
+        var tripSegment: RouteSegment? = null
+        val tripMatcher = tripRegex.matcher(joinedText)
+        if (tripMatcher.find()) {
+            val timeMins = parseDurationToMinutes(tripMatcher.group(1).orEmpty(), tripMatcher.group(2).orEmpty())
+            val distanceKm = parseDistanceKm(tripMatcher.group(3).orEmpty())
+            if (timeMins != null && distanceKm != null) {
+                tripSegment = RouteSegment(distanceKm, timeMins)
+                Log.d(TAG, "  🧭 Trip segment: ${tripSegment.timeMins} min / ${tripSegment.distanceKm} km")
+            }
+        }
+
+        if (pickupSegment != null && tripSegment != null) {
+            return Pair(
+                pickupSegment.distanceKm + tripSegment.distanceKm,
+                pickupSegment.timeMins + tripSegment.timeMins
+            )
+        }
+        if (tripSegment != null) {
+            return Pair(tripSegment.distanceKm, tripSegment.timeMins)
+        }
+        if (pickupSegment != null) {
+            return Pair(pickupSegment.distanceKm, pickupSegment.timeMins)
+        }
+
+        var genericDistance: Double? = null
+        var genericTimeMins: Double? = null
+        val distPattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(km|KM|mi|mi\\.|Millas|millas)", Pattern.CASE_INSENSITIVE)
+        val timePattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)", Pattern.CASE_INSENSITIVE)
+        for (text in texts) {
+            if (!containsIgnoredMoneyContext(text)) {
+                val distMatcher = distPattern.matcher(text)
+                if (distMatcher.find()) {
+                    genericDistance = parseDistanceKm(distMatcher.group(1).orEmpty()) ?: genericDistance
+                }
+            }
+
+            val timeMatcher = timePattern.matcher(text)
+            if (timeMatcher.find()) {
+                genericTimeMins = parseDurationToMinutes(timeMatcher.group(1).orEmpty(), timeMatcher.group(2).orEmpty()) ?: genericTimeMins
+            }
+        }
+        return Pair(genericDistance, genericTimeMins)
+    }
+
     private fun parseAndEvaluateScreenTexts(texts: List<String>) {
         Log.d(TAG, "📊 parseAndEvaluateScreenTexts: Processing ${texts.size} text nodes")
         if (texts.isEmpty()) {
             Log.w(TAG, "  ⚠️  No texts collected - tree may be empty or using WebView")
             return
         }
-        
-        var detectedPrice: Double? = null
-        var detectedDistance: Double? = null
-        var detectedTimeMins: Double? = null
 
-        // Enhanced regex patterns for multiple formats.
-        // Currency prefix covers: CLP (Uber Chile), COP, ARS, MXN, PEN, BRL and common symbols ($, €, ¥, £).
-        // Number part uses [0-9][0-9.,]* to greedily capture values like "7,604" or "1,234,567".
-        val currencySymbols = "CLP|COP|ARS|MXN|PEN|BRL|UYU|USD|EUR|\\$|€|¥|£"
-        val pricePattern = Pattern.compile(
-            "(?:$currencySymbols)\\s*([0-9][0-9.,]*)|([0-9][0-9.,]*)\\s*(?:$currencySymbols)",
-            Pattern.CASE_INSENSITIVE
-        )
-        val distPattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(km|KM|mi|mi\\.|Millas|millas)", Pattern.CASE_INSENSITIVE)
-        val timePattern = Pattern.compile("([0-9]+)\\s*(min|mins|minutos|hr|h|hora|horas)", Pattern.CASE_INSENSITIVE)
+        val normalizedTexts = texts
+            .map(::normalizeScreenText)
+            .filter { it.isNotBlank() }
+            .distinct()
 
-        for (text in texts) {
-            // Price Match
-            val priceMatcher = pricePattern.matcher(text)
-            if (priceMatcher.find()) {
-                val raw = (priceMatcher.group(1) ?: priceMatcher.group(2) ?: "")
-                val parsed = parseFlexibleNumber(raw)
-                parsed?.let {
-                    detectedPrice = it
-                    Log.d(TAG, "  💰 Price: text='${text.take(50)}' -> \$$detectedPrice")
-                }
-            }
-            
-            // Distance Match
-            val distMatcher = distPattern.matcher(text)
-            if (distMatcher.find()) {
-                val valStr = distMatcher.group(1)?.replace(",", ".")
-                valStr?.toDoubleOrNull()?.let {
-                    detectedDistance = it
-                    Log.d(TAG, "  📍 Distance: text='${text.take(50)}' -> $detectedDistance km")
-                }
-            }
+        val bestPriceCandidate = collectPriceCandidates(normalizedTexts)
+            .filter { it.score > 0 }
+            .sortedWith(compareByDescending<PriceCandidate> { it.score }.thenByDescending { it.value }.thenBy { it.index })
+            .firstOrNull()
 
-            // Time Match
-            val timeMatcher = timePattern.matcher(text)
-            if (timeMatcher.find()) {
-                val valStr = timeMatcher.group(1)
-                valStr?.toDoubleOrNull()?.let {
-                    detectedTimeMins = it
-                    Log.d(TAG, "  ⏱️  Time: text='${text.take(50)}' -> ${it.toInt()} min")
-                }
-            }
+        val detectedPrice = bestPriceCandidate?.value
+        if (bestPriceCandidate != null) {
+            Log.d(
+                TAG,
+                "  💰 Price selected: value=${bestPriceCandidate.value} score=${bestPriceCandidate.score} source='${bestPriceCandidate.source.take(80)}'"
+            )
         }
 
-        // If we found a candidate trip (needs at least price & distance to evaluate)
+        val (detectedDistance, detectedTimeMins) = extractRouteMetrics(normalizedTexts)
+
         if (detectedPrice != null && detectedDistance != null) {
             Log.d(TAG, "✅ Candidate trip: price=\$$detectedPrice distance=${detectedDistance}km time=$detectedTimeMins")
+            val tripSignature = "${detectedPrice.toInt()}|${String.format("%.1f", detectedDistance)}"
             val now = System.currentTimeMillis()
-            if (now - lastCapturedTime < captureCooldown) {
-                Log.d(TAG, "  ⏳ Skipping due cooldown (${captureCooldown}ms)")
+            if (tripSignature == lastCapturedSignature && now - lastCapturedTime < duplicateOfferWindowMs) {
+                Log.d(TAG, "  ⏳ Skipping duplicate offer signature=$tripSignature")
                 return
             }
+            lastCapturedSignature = tripSignature
             lastCapturedTime = now
 
-            val finalTimeMins = detectedTimeMins ?: 15.0 // fallback if time text parsing failed
-            runProfitabilityCalculation(detectedPrice!!, detectedDistance!!, finalTimeMins)
+            val finalTimeMins = detectedTimeMins ?: 15.0
+            runProfitabilityCalculation(detectedPrice, detectedDistance, finalTimeMins)
         } else {
             Log.w(TAG, "  ❌ No valid trip found: price=${detectedPrice} distance=${detectedDistance}")
         }

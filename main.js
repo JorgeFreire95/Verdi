@@ -824,7 +824,7 @@ function setupNativeListeners() {
     // Listen for trips captured by background OCR/Accessibility service
     VerdiPlugin.addListener('onTripCaptured', (trip) => {
       // Deduplicate: if native service re-fires the same trip, skip processing
-      const tripKey = `${trip.price}-${trip.distance}-${trip.timeMins}`;
+      const tripKey = `${Math.round(trip.price)}-${Number(trip.distance).toFixed(1)}`;
       if (tripKey === lastTripKey) return;
       lastTripKey = tripKey;
       // Clear dedup key after 10s so a genuinely identical trip can be captured again
