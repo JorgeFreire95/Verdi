@@ -89,6 +89,10 @@ gantt
     Priorizar monto principal de la oferta      :done, s15a, 2026-09-03, 1d
     Sumar retiro + viaje en métricas visibles   :done, s15b, 2026-09-03, 1d
     Deduplicación por firma de oferta real      :done, s15c, 2026-09-03, 1d
+
+    section Sprint 16: Lectura Estable y Persistencia del Análisis
+    Debounce de escaneo del árbol de accesibilidad :done, s16a, 2026-09-09, 1d
+    Preservar resultado en overlay nativo          :done, s16b, 2026-09-09, 1d
 ```
 
 ---
@@ -204,3 +208,9 @@ gantt
   * **Priorización del monto principal ofertado:** `VerdiAccessibilityService.kt` ahora arma y puntúa candidatos de precio para privilegiar el importe central del card de Uber, descartando mejor valores secundarios como tarifa por km, rating, medios de pago u otros números no tarifarios.
   * **Composición de métricas pickup + viaje:** Cuando la pantalla muestra por separado el tramo de retiro y el tramo principal del viaje, ambos se combinan para calcular distancia total, tiempo total, gasto estimado de combustible y decisión del semáforo con mayor fidelidad.
   * **Deduplicación por firma de oferta real:** Se reemplazó el cooldown global por una firma basada en la oferta detectada, y `main.js` alineó su clave de deduplicación a `precio + distancia`, evitando que solicitudes nuevas queden sin lectura o que la burbuja permanezca en grafito por un falso repetido.
+
+### Sprint 16: Lectura Estable y Persistencia del Análisis (09 Sep)
+* **Objetivo:** Evitar que el análisis capture valores parciales mientras la tarjeta de oferta se está renderizando y conservar el último resultado visible en la burbuja nativa durante los resets de la interfaz web.
+* **Hitos alcanzados:**
+  * **Debounce del escaneo de accesibilidad:** `VerdiAccessibilityService.kt` agrupa eventos consecutivos durante 350 ms, cancela el escaneo pendiente y vuelve a leer el árbol de accesibilidad cuando la oferta se estabiliza. Esto reduce capturas de precios parciales o desactualizados.
+  * **Persistencia del resultado en el overlay:** `resetLiveUIToIdle()` en `main.js` limpia únicamente la vista web y deja intactos el color y los datos del último viaje en la burbuja nativa hasta capturar una nueva oferta o detener el servicio.
