@@ -79,6 +79,23 @@ class VerdiAccessibilityService : AccessibilityService() {
     }
     private val NOTIF_ID = 8421
 
+    // ── Debounce for content scans ──
+    // Rideshare apps redraw the offer card across several frames while it animates in
+    // (price/detail placeholders get updated progressively). Scanning on every single
+    // accessibility event can capture a stale/partial value (e.g. "CLP 600" before the
+    // final "CLP 3,425" is rendered). We debounce the scan so it only runs once the UI
+    // has stopped changing for a short window, then re-reads the tree fresh at that point.
+    private val scanHandler = Handler(Looper.getMainLooper())
+    private var pendingScanPkg: String? = null
+    private val SCAN_DEBOUNCE_MS = 350L
+    private val scanRunnable = Runnable {
+        val scanPkg = pendingScanPkg
+        pendingScanPkg = null
+        if (scanPkg != null) {
+            performContentScan(scanPkg)
+        }
+    }
+
     private data class PriceCandidate(
         val value: Double,
         val score: Int,
@@ -255,37 +272,12 @@ class VerdiAccessibilityService : AccessibilityService() {
         } else null
 
         if (pkgToScan != null) {
-            Log.d(TAG, "🚗 Scanning active app package $pkgToScan (event=$eventTypeStr)")
-            val cleanName = pkgToAppName(pkgToScan)
-            if (cleanName != null && cleanName != activeApp) {
-                Log.d(TAG, "  └─ App change detected: $cleanName")
-                commitActiveApp(cleanName)
-            }
-
-            notifyAppConnected(pkgToScan)
-
-            val rootNode = rootInActiveWindow
-            if (rootNode == null) {
-                Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkgToScan")
-                return
-            }
-            
-            Log.d(TAG, "  └─ Root node packageName: ${rootNode.packageName}")
-            Log.d(TAG, "  └─ Root node childCount: ${rootNode.childCount}")
-            
-            val texts = ArrayList<String>()
-            findTextNodes(rootNode, texts)
-            Log.d(TAG, "  └─ Collected ${texts.size} text nodes from tree")
-            
-            if (texts.isNotEmpty()) {
-                texts.forEachIndexed { idx, text ->
-                    if (text.isNotBlank()) {
-                        Log.d(TAG, "    [Text $idx]: ${text.take(100)}")
-                    }
-                }
-            }
-            
-            parseAndEvaluateScreenTexts(texts)
+            // Debounce: cancel any pending scan and schedule a fresh one. This ensures we
+            // read the tree only after the offer card UI has settled, avoiding stale/partial
+            // values (like an intermediate "CLP 600" before the final "CLP 3,425" appears).
+            pendingScanPkg = pkgToScan
+            scanHandler.removeCallbacks(scanRunnable)
+            scanHandler.postDelayed(scanRunnable, SCAN_DEBOUNCE_MS)
         }
         
         // ── Fallback: Always check root if event didn't trigger a known rideshare app ──
@@ -309,6 +301,43 @@ class VerdiAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "Fallback detection error", e)
             }
         }
+    }
+
+    // ── Performs the actual accessibility tree scan for a rideshare package. ──
+    // Called only after the debounce window elapses, so the tree is re-read fresh
+    // (not the one captured at the original event time) reflecting the settled UI.
+    private fun performContentScan(pkgToScan: String) {
+        Log.d(TAG, "🚗 Scanning active app package $pkgToScan (debounced)")
+        val cleanName = pkgToAppName(pkgToScan)
+        if (cleanName != null && cleanName != activeApp) {
+            Log.d(TAG, "  └─ App change detected: $cleanName")
+            commitActiveApp(cleanName)
+        }
+
+        notifyAppConnected(pkgToScan)
+
+        val rootNode = rootInActiveWindow
+        if (rootNode == null) {
+            Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkgToScan")
+            return
+        }
+
+        Log.d(TAG, "  └─ Root node packageName: ${rootNode.packageName}")
+        Log.d(TAG, "  └─ Root node childCount: ${rootNode.childCount}")
+
+        val texts = ArrayList<String>()
+        findTextNodes(rootNode, texts)
+        Log.d(TAG, "  └─ Collected ${texts.size} text nodes from tree")
+
+        if (texts.isNotEmpty()) {
+            texts.forEachIndexed { idx, text ->
+                if (text.isNotBlank()) {
+                    Log.d(TAG, "    [Text $idx]: ${text.take(100)}")
+                }
+            }
+        }
+
+        parseAndEvaluateScreenTexts(texts)
     }
 
     // ── Helper: map a package name to a clean app name (null = unknown/system) ──
@@ -806,6 +835,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
+        scanHandler.removeCallbacks(scanRunnable)
         Log.w(TAG, "⚠️  onInterrupt - Accessibility Service was INTERRUPTED")
         VerdiPlugin.onAppConnected(activeApp)
     }
@@ -816,6 +846,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
+        scanHandler.removeCallbacks(scanRunnable)
         VerdiPlugin.onAppConnected(activeApp)
         try {
             stopForeground(true)

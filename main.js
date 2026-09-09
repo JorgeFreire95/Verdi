@@ -793,15 +793,8 @@ function resetLiveUIToIdle() {
   elements.liveMetricsContainer.style.display = 'none';
   elements.liveBubbleText.innerText = '🔘';
 
-  // Reset the native overlay state too; otherwise the bubble remains stuck in the last color.
-  VerdiPlugin.updateBubbleState({
-    decision: 'GRAPHITE',
-    price: 0,
-    fuel: 0,
-    net: 0,
-    hourly: 0,
-    currency: STATE.currency
-  }).catch(err => console.warn('Bubble reset failed:', err));
+  // Keep the native bubble's last result visible. Its color and detail should
+  // remain available until the next offer is captured or the bubble is stopped.
 }
 
 function setupNativeListeners() {

@@ -58,7 +58,7 @@ Basados en el documento de especificación funcional original de Verdi, el siste
 1. **Detección y Captura Automática de Ofertas:** Monitoreo activo y seguro en segundo plano de las aplicaciones de transporte compatibles (Uber, DiDi y Cabify) para capturar ofertas de viajes en el momento en que aparecen en pantalla.
 2. **Lectura Inteligente de Parámetros (OCR Local):** Extracción local (sin conexión a internet) del precio bruto, distancia total de viaje y tiempo estimado a partir de los elementos visuales de la pantalla.
 3. **Configuración Operativa del Conductor:** Interfaz de configuración para ingresar costos reales: precio de combustible local, rendimiento del vehículo y ganancia mínima deseada por distancia.
-4. **Cálculo de Rentabilidad y Semáforo:** Deducción automática del gasto proyectado de combustible de la tarifa capturada para calcular la ganancia neta y clasificar visualmente el viaje (Verde: Rentable, Amarillo: Aceptable, Rojo: No Recomendado/Pérdida) basándose en las metas configuradas.
+4. **Cálculo de Rentabilidad y Semáforo:** Deducción automática del gasto proyectado de combustible de la tarifa capturada para calcular la ganancia neta y clasificar visualmente el viaje (Verde: Rentable, Amarillo: Aceptable, Rojo: No Recomendado/Pérdida) basándose simultáneamente en las metas configuradas de ganancia por distancia y ganancia horaria.
 5. **Burbuja Flotante Activa (Overlay UI):** Widget circular flotante que permanece visible sobre las apps de conductor, cambia de color reactivamente en menos de 500 ms, y es arrastrable por la pantalla (guardando su última ubicación).
 6. **Detalle de Margen Operativo:** Panel desplegable al presionar la burbuja flotante que detalla el costo estimado de gasolina y la ganancia neta proyectada del viaje, sin mostrar la tasa horaria para mantener la información más clara y directa en pantalla.
 7. **Monitoreo de Estado y Conexión de Apps:** Detección en tiempo real de qué aplicación de conductor está activa y en primer plano, actualizando el tablero principal con el estado `"Conectado a [App]"` y el mensaje `"Esperando viaje..."`.
@@ -175,11 +175,11 @@ gantt
 ---
 
 * **🔍 Captura Automática y Lectura Inteligente:** Monitorea y lee en tiempo real el contenido de la pantalla cuando el conductor está en Uber, DiDi o Cabify, priorizando el monto principal ofertado y extrayendo tarifa, distancia y tiempo reales del viaje.
-* **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando si cumple con los objetivos de ingresos por distancia. Funciona de manera 100% local (sin depender de conexión a internet).
+* **🧮 Algoritmo de Rentabilidad Offline:** Realiza el cálculo matemático de rentabilidad deduciendo el costo estimado de combustible y verificando simultáneamente los objetivos de ingresos por distancia y por hora. Funciona de manera 100% local (sin depender de conexión a internet).
 * **🟢 Semáforo Inteligente:** Muestra de forma visual e inmediata la calidad del viaje:
-  * **Verde (Rentable):** Cumple con la meta de ganancia por distancia.
-  * **Amarillo (Marginal):** Viaje aceptable que se encuentra cerca del límite mínimo.
-  * **Rojo (Poco rentable / Pérdida):** No cumple la meta mínima o genera pérdida.
+  * **Verde (Rentable):** Cumple con las metas de ganancia por distancia y por hora.
+  * **Amarillo (Marginal):** Viaje aceptable que se encuentra cerca de alguno de los límites mínimos.
+  * **Rojo (Poco rentable / Pérdida):** No cumple una de las metas mínimas o genera pérdida.
 * **📡 Monitoreo de Apps de Conductor:** Verifica si Uber Driver, DiDi Conductor y Cabify Driver están instaladas e informa su estado en tiempo real (Activa / En segundo plano / No detectada).
 * **💬 Burbuja Flotante de Servicio:** Widget interactivo que flota sobre otras apps, cambia de color en menos de 500 ms, hace snap magnético al borde de pantalla y persiste su estado de activación (no se reactiva sola tras apagarla manualmente).
 * **🌎 Soporte Regional Adaptable:** Admite múltiples monedas (CLP, USD, COP, MXN, EUR, etc.) y unidades regionales (KM/Millas, Litros/Galones, KM/L, MPG) sin alterar la lógica interna.
@@ -187,6 +187,21 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.16.0 — Sprint 16 (2026-09-09)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | La lectura podía capturar valores intermedios mientras Uber, DiDi o Cabify todavía estaban renderizando la oferta, por ejemplo un precio parcial antes del monto final. | Se añadió un debounce de 350 ms: los eventos consecutivos cancelan el escaneo anterior y el árbol de accesibilidad se lee nuevamente cuando la interfaz se estabiliza. |
+| 2 | `main.js` | El reinicio de la interfaz web también enviaba `GRAPHITE` al overlay nativo, borrando de inmediato el color y el detalle del último viaje antes de que el conductor pudiera consultarlo. | El reset del WebView ahora limpia únicamente la vista web y conserva el último resultado en la burbuja nativa hasta capturar una nueva oferta o detener el servicio. |
+
+#### ✨ Mejoras
+- **Lectura más confiable:** se reducen capturas de precios parciales o desactualizados durante la animación de las tarjetas de oferta.
+- **Detalle persistente:** el color, precio, gasto de combustible y ganancia neta del último viaje permanecen disponibles en la burbuja nativa.
+
+---
 
 ### v1.15.0 — Sprint 15 (2026-09-03)
 
