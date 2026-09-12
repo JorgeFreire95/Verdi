@@ -93,6 +93,11 @@ gantt
     section Sprint 16: Lectura Estable y Persistencia del Análisis
     Debounce de escaneo del árbol de accesibilidad :done, s16a, 2026-09-09, 1d
     Preservar resultado en overlay nativo          :done, s16b, 2026-09-09, 1d
+
+    section Sprint 17: Corrección de Lectura y Overlay
+    Seleccionar ventana real de app conductora   :done, s17a, 2026-09-11, 1d
+    Liberar árbol de accesibilidad tras escaneo  :done, s17b, 2026-09-11, 1d
+    Parser tolerante para rutas de Cabify       :done, s17c, 2026-09-11, 1d
 ```
 
 ---
@@ -214,3 +219,11 @@ gantt
 * **Hitos alcanzados:**
   * **Debounce del escaneo de accesibilidad:** `VerdiAccessibilityService.kt` agrupa eventos consecutivos durante 350 ms, cancela el escaneo pendiente y vuelve a leer el árbol de accesibilidad cuando la oferta se estabiliza. Esto reduce capturas de precios parciales o desactualizados.
   * **Persistencia del resultado en el overlay:** `resetLiveUIToIdle()` en `main.js` limpia únicamente la vista web y deja intactos el color y los datos del último viaje en la burbuja nativa hasta capturar una nueva oferta o detener el servicio.
+
+### Sprint 17: Corrección de Lectura y Overlay (11 Sep)
+* **Objetivo:** Resolver la lectura incompleta de viajes cuando la ventana flotante de Verdi quedaba como ventana activa, además de asegurar que el detalle y el color se actualicen con la oferta real.
+* **Hitos alcanzados:**
+  * **Selección de ventana correcta:** el servicio busca en `windows` el árbol cuyo paquete coincide con Uber, DiDi o Cabify, evitando analizar el árbol de Verdi por encima de la app conductora.
+  * **Liberación garantizada del árbol:** el nodo raíz seleccionado se libera en un bloque `finally` después de procesar sus textos, reduciendo estados inconsistentes en lecturas sucesivas.
+  * **Parser de rutas flexible:** las expresiones de retiro y viaje aceptan paréntesis opcionales, incluyendo formatos como `A 9 min (7.5 km)` y `Viaje: 17 min (7.2 km)`.
+  * **Validación de compilación:** el APK debug se validó correctamente con `assembleDebug`.

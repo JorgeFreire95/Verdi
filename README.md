@@ -123,6 +123,12 @@ gantt
     Priorizar monto principal de la oferta      :done, s23, 2026-09-03, 1d
     Sumar retiro + viaje en métricas visibles   :done, s24, 2026-09-03, 1d
     Deduplicación por firma de oferta real      :done, s25, 2026-09-03, 1d
+    section Sprint 16: Lectura Estable y Persistencia del Análisis
+    Debounce de escaneo del árbol de accesibilidad :done, s26, 2026-09-09, 1d
+    Preservar resultado en overlay nativo          :done, s27, 2026-09-09, 1d
+    section Sprint 17: Corrección de Lectura y Overlay
+    Selección de ventana real de la app conductora :done, s28, 2026-09-11, 1d
+    Parser tolerante para formatos Cabify       :done, s29, 2026-09-11, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -171,6 +177,12 @@ gantt
 * **Sprint 15: Lectura Real de Oferta Uber y Deduplicación Fina (1 día) — ✅ Completado**
   * **Sprint Goal:** Corregir la lectura errónea del monto principal de Uber, evitar que el detalle de la burbuja use cifras ajenas al viaje y permitir que nuevas solicitudes similares vuelvan a analizarse sin quedar bloqueadas.
   * **Entregable:** APK con parser que prioriza el precio principal de la oferta, suma retiro + viaje cuando ambos datos están presentes y usa deduplicación por firma real de oferta para no dejar viajes nuevos sin lectura.
+* **Sprint 16: Lectura Estable y Persistencia del Análisis (1 día) — ✅ Completado**
+  * **Sprint Goal:** Evitar capturas parciales durante la animación de la oferta y conservar el último análisis visible en el overlay nativo.
+  * **Entregable:** APK con debounce del escaneo de accesibilidad y persistencia del color y detalle del último viaje en la burbuja.
+* **Sprint 17: Corrección de Lectura y Overlay (1 día) — ✅ Completado**
+  * **Sprint Goal:** Resolver los casos en que no se leía el viaje, el overlay mostraba guiones y la burbuja no cambiaba de color al estar Verdi por encima de la app conductora.
+  * **Entregable:** APK que selecciona la ventana de accesibilidad perteneciente a Uber/DiDi/Cabify, libera correctamente el árbol leído y acepta formatos de ruta con o sin paréntesis, como `A 9 min (7.5 km)` y `Viaje: 17 min (7.2 km)`.
 
 ---
 
@@ -187,6 +199,23 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.17.0 — Sprint 17 (2026-09-11)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | Con la burbuja de Verdi visible, `rootInActiveWindow` podía apuntar a la ventana propia de Verdi en lugar de la ventana de Uber, DiDi o Cabify. El escaneo encontraba pocos o ningún texto de la oferta y no emitía el análisis completo. | Se añadió una búsqueda explícita en `windows` para seleccionar el árbol cuyo paquete coincide con la app conductora; el root alternativo solo se usa cuando pertenece al paquete esperado. |
+| 2 | `VerdiAccessibilityService.kt` | El árbol de accesibilidad podía conservar nodos sin liberar después del escaneo, y el flujo de lectura quedaba expuesto a estados inconsistentes en sucesivas ofertas. | El árbol seleccionado se libera en un bloque `finally` después de procesar todos sus textos. |
+| 3 | `VerdiAccessibilityService.kt` | El parser no reconocía algunas variantes de Cabify cuando la distancia aparecía sin paréntesis, aunque la pantalla mostrara correctamente precio, tiempo y kilómetros. | Las expresiones de retiro y viaje ahora aceptan paréntesis opcionales y formatos como `A 9 min 7.5 km` y `Viaje: 17 min (7.2 km)`. |
+
+#### ✨ Mejoras
+- **Lectura real de la oferta:** el escaneo se realiza sobre la ventana de la app conductora aunque el overlay de Verdi esté encima.
+- **Overlay coherente:** al emitirse un viaje válido se mantienen conectados el cálculo, el color de la burbuja y los valores de precio, combustible y ganancia neta del detalle.
+- **Validación de compilación:** el APK debug fue compilado correctamente con `assembleDebug`.
+
+---
 
 ### v1.16.0 — Sprint 16 (2026-09-09)
 
