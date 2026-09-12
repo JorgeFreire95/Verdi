@@ -316,7 +316,9 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         notifyAppConnected(pkgToScan)
 
-        val rootNode = rootInActiveWindow
+        // The Verdi overlay can become the active accessibility window. In that
+        // case rootInActiveWindow points to Verdi instead of the driver app.
+        val rootNode = findRootForPackage(pkgToScan)
         if (rootNode == null) {
             Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkgToScan")
             return
@@ -337,7 +339,42 @@ class VerdiAccessibilityService : AccessibilityService() {
             }
         }
 
-        parseAndEvaluateScreenTexts(texts)
+        try {
+            parseAndEvaluateScreenTexts(texts)
+        } finally {
+            rootNode.recycle()
+        }
+    }
+
+    /**
+     * Resolve the accessibility tree belonging to the driver app, not Verdi's
+     * own overlay window. Some devices report the overlay as rootInActiveWindow
+     * while it is drawn above the driver app.
+     */
+    private fun findRootForPackage(targetPackage: String): AccessibilityNodeInfo? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                windows?.forEach { window ->
+                    val root = window.root ?: return@forEach
+                    val packageName = root.packageName?.toString()
+                    if (packageName.equals(targetPackage, ignoreCase = true)) {
+                        return root
+                    }
+                    root.recycle()
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not inspect accessibility windows", e)
+            }
+        }
+
+        val fallback = rootInActiveWindow
+        val fallbackPackage = fallback?.packageName?.toString()
+        return if (fallback != null && fallbackPackage.equals(targetPackage, ignoreCase = true)) {
+            fallback
+        } else {
+            fallback?.recycle()
+            null
+        }
     }
 
     // ── Helper: map a package name to a clean app name (null = unknown/system) ──
@@ -681,11 +718,11 @@ class VerdiAccessibilityService : AccessibilityService() {
     private fun extractRouteMetrics(texts: List<String>): Pair<Double?, Double?> {
         val joinedText = texts.joinToString("\n")
         val pickupRegex = Pattern.compile(
-            "(?:^|\\n)\\s*(?:a|en)\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)",
+            "(?:^|\\n)\\s*(?:a|en)\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(?\\s*([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)?",
             Pattern.CASE_INSENSITIVE
         )
         val tripRegex = Pattern.compile(
-            "viaje\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)",
+            "viaje\\s*:?\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(?\\s*([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)?",
             Pattern.CASE_INSENSITIVE
         )
 
