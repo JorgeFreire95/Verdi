@@ -98,6 +98,10 @@ gantt
     Seleccionar ventana real de app conductora   :done, s17a, 2026-09-11, 1d
     Liberar árbol de accesibilidad tras escaneo  :done, s17b, 2026-09-11, 1d
     Parser tolerante para rutas de Cabify       :done, s17c, 2026-09-11, 1d
+
+    section Sprint 18: Config Autoritativa y Estabilidad de Lectura
+    Eliminar doble escritura de la burbuja      :done, s18a, 2026-09-14, 1d
+    Confirmación por doble lectura estable      :done, s18b, 2026-09-14, 1d
 ```
 
 ---
@@ -227,3 +231,9 @@ gantt
   * **Liberación garantizada del árbol:** el nodo raíz seleccionado se libera en un bloque `finally` después de procesar sus textos, reduciendo estados inconsistentes en lecturas sucesivas.
   * **Parser de rutas flexible:** las expresiones de retiro y viaje aceptan paréntesis opcionales, incluyendo formatos como `A 9 min (7.5 km)` y `Viaje: 17 min (7.2 km)`.
   * **Validación de compilación:** el APK debug se validó correctamente con `assembleDebug`.
+
+### Sprint 18: Config Autoritativa y Estabilidad de Lectura (14 Sep)
+* **Objetivo:** Eliminar una condición de carrera que sobrescribía la burbuja con datos fuera de sincronía con la configuración del conductor, y reforzar la detección de la oferta para no calcular sobre valores parciales de la tarjeta en animación.
+* **Hitos alcanzados:**
+  * **Eliminación de doble escritura de la burbuja:** `VerdiAccessibilityService.kt` ya actualizaba el overlay nativo directamente con la configuración autoritativa leída de `SharedPreferences`, pero `main.js` volvía a calcular el mismo viaje con su propio `STATE` (cargado de `localStorage`) y sobrescribía la burbuja vía `VerdiPlugin.updateBubbleState()`, generando una carrera donde el panel podía terminar mostrando cifras que no correspondían a la configuración de costos guardada por el conductor. Se removió esa segunda escritura redundante desde el WebView.
+  * **Confirmación de oferta por doble lectura estable:** se separó la detección pura (`detectTripCandidate`) de la evaluación con `evaluateScanResult`, que ahora exige que dos lecturas consecutivas del árbol de accesibilidad (separadas ~300 ms) arrojen el mismo precio y distancia antes de disparar el cálculo de rentabilidad, evitando actuar sobre un valor intermedio mientras la tarjeta de oferta aún se está animando en pantalla.

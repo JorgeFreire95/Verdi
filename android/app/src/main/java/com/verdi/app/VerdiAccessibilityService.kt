@@ -12,6 +12,7 @@ import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import java.util.Locale
 import java.util.regex.Pattern
 import android.widget.Toast
 import android.util.Log
@@ -91,6 +92,26 @@ class VerdiAccessibilityService : AccessibilityService() {
     private val scanRunnable = Runnable {
         val scanPkg = pendingScanPkg
         pendingScanPkg = null
+        if (scanPkg != null) {
+            performContentScan(scanPkg)
+        }
+    }
+
+    // ── Stability check on top of the debounce above ──
+    // The debounce alone isn't enough: some rideshare screens keep firing content-changed
+    // events for a while (e.g. a countdown to accept the offer), which can make us read the
+    // tree right as a value is mid-animation (e.g. an intermediate "CLP 600" before the final
+    // "CLP 3,425"). To avoid acting on a transient value, we require the SAME price+distance
+    // to be read on two consecutive scans before we trust it and trigger the calculation.
+    private val stabilityHandler = Handler(Looper.getMainLooper())
+    private var pendingStabilityPkg: String? = null
+    private var lastStabilitySignature: String? = null
+    private val STABILITY_RECHECK_MS = 300L
+    private val MAX_STABILITY_RETRIES = 6
+    private var stabilityRetryCount = 0
+    private val stabilityRunnable = Runnable {
+        val scanPkg = pendingStabilityPkg
+        pendingStabilityPkg = null
         if (scanPkg != null) {
             performContentScan(scanPkg)
         }
@@ -340,7 +361,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         }
 
         try {
-            parseAndEvaluateScreenTexts(texts)
+            evaluateScanResult(pkgToScan, texts)
         } finally {
             rootNode.recycle()
         }
@@ -781,11 +802,20 @@ class VerdiAccessibilityService : AccessibilityService() {
         return Pair(genericDistance, genericTimeMins)
     }
 
-    private fun parseAndEvaluateScreenTexts(texts: List<String>) {
-        Log.d(TAG, "📊 parseAndEvaluateScreenTexts: Processing ${texts.size} text nodes")
+    private data class TripCandidate(
+        val price: Double,
+        val distance: Double,
+        val timeMins: Double
+    )
+
+    // ── Pure detection: extracts a trip candidate from the current text snapshot. ──
+    // Has no side effects (no dedup, no dispatch) so it can be called repeatedly for the
+    // stability check without triggering anything.
+    private fun detectTripCandidate(texts: List<String>): TripCandidate? {
+        Log.d(TAG, "📊 detectTripCandidate: Processing ${texts.size} text nodes")
         if (texts.isEmpty()) {
             Log.w(TAG, "  ⚠️  No texts collected - tree may be empty or using WebView")
-            return
+            return null
         }
 
         val normalizedTexts = texts
@@ -809,21 +839,54 @@ class VerdiAccessibilityService : AccessibilityService() {
         val (detectedDistance, detectedTimeMins) = extractRouteMetrics(normalizedTexts)
 
         if (detectedPrice != null && detectedDistance != null) {
-            Log.d(TAG, "✅ Candidate trip: price=\$$detectedPrice distance=${detectedDistance}km time=$detectedTimeMins")
-            val tripSignature = "${detectedPrice.toInt()}|${String.format("%.1f", detectedDistance)}"
-            val now = System.currentTimeMillis()
-            if (tripSignature == lastCapturedSignature && now - lastCapturedTime < duplicateOfferWindowMs) {
-                Log.d(TAG, "  ⏳ Skipping duplicate offer signature=$tripSignature")
-                return
-            }
-            lastCapturedSignature = tripSignature
-            lastCapturedTime = now
-
-            val finalTimeMins = detectedTimeMins ?: 15.0
-            runProfitabilityCalculation(detectedPrice, detectedDistance, finalTimeMins)
-        } else {
-            Log.w(TAG, "  ❌ No valid trip found: price=${detectedPrice} distance=${detectedDistance}")
+            return TripCandidate(detectedPrice, detectedDistance, detectedTimeMins ?: 15.0)
         }
+        Log.w(TAG, "  ❌ No valid trip found: price=${detectedPrice} distance=${detectedDistance}")
+        return null
+    }
+
+    // ── Called after each debounced scan. Requires the SAME candidate to be read on two ──
+    // consecutive scans (STABILITY_RECHECK_MS apart) before trusting it, so we don't act on
+    // an intermediate/partial value while the offer card is still animating in.
+    private fun evaluateScanResult(pkgToScan: String, texts: List<String>) {
+        val candidate = detectTripCandidate(texts)
+        if (candidate == null) {
+            lastStabilitySignature = null
+            stabilityRetryCount = 0
+            stabilityHandler.removeCallbacks(stabilityRunnable)
+            return
+        }
+
+        val signature = "${candidate.price.toInt()}|${String.format(Locale.US, "%.1f", candidate.distance)}"
+        Log.d(TAG, "✅ Candidate trip: price=\$${candidate.price} distance=${candidate.distance}km time=${candidate.timeMins} signature=$signature")
+
+        if (signature == lastStabilitySignature || stabilityRetryCount >= MAX_STABILITY_RETRIES) {
+            // Confirmed stable across two reads (or we gave up waiting for it to settle) — proceed.
+            lastStabilitySignature = null
+            stabilityRetryCount = 0
+            stabilityHandler.removeCallbacks(stabilityRunnable)
+            dispatchTripCandidate(candidate, signature)
+        } else {
+            // Value changed since the last read (or this is the first read) — it may still be
+            // mid-animation. Wait a moment and re-read the tree before trusting it.
+            lastStabilitySignature = signature
+            stabilityRetryCount++
+            pendingStabilityPkg = pkgToScan
+            stabilityHandler.removeCallbacks(stabilityRunnable)
+            stabilityHandler.postDelayed(stabilityRunnable, STABILITY_RECHECK_MS)
+        }
+    }
+
+    private fun dispatchTripCandidate(candidate: TripCandidate, tripSignature: String) {
+        val now = System.currentTimeMillis()
+        if (tripSignature == lastCapturedSignature && now - lastCapturedTime < duplicateOfferWindowMs) {
+            Log.d(TAG, "  ⏳ Skipping duplicate offer signature=$tripSignature")
+            return
+        }
+        lastCapturedSignature = tripSignature
+        lastCapturedTime = now
+
+        runProfitabilityCalculation(candidate.price, candidate.distance, candidate.timeMins)
     }
 
     private fun runProfitabilityCalculation(price: Double, distance: Double, timeMins: Double) {
@@ -873,6 +936,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
         scanHandler.removeCallbacks(scanRunnable)
+        stabilityHandler.removeCallbacks(stabilityRunnable)
         Log.w(TAG, "⚠️  onInterrupt - Accessibility Service was INTERRUPTED")
         VerdiPlugin.onAppConnected(activeApp)
     }
@@ -884,6 +948,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
         scanHandler.removeCallbacks(scanRunnable)
+        stabilityHandler.removeCallbacks(stabilityRunnable)
         VerdiPlugin.onAppConnected(activeApp)
         try {
             stopForeground(true)

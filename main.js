@@ -878,16 +878,14 @@ function setupNativeListeners() {
         resetLiveUIToIdle();
       }, 8000);
 
-      // Notify native overlay bubble of the new color/state
-      VerdiPlugin.updateBubbleState({
-        decision: results.decision,
-        price: trip.price,
-        fuel: results.fuelCost,
-        net: results.netProfit,
-        hourly: results.hourlyRate,
-        currency: STATE.currency
-      }).catch(err => console.warn('updateBubbleState failed:', err));
-      
+      // NOTE: We intentionally do NOT call VerdiPlugin.updateBubbleState() here.
+      // VerdiAccessibilityService already updates the native floating bubble directly
+      // (FloatingBubbleService.updateBubble) using the authoritative config values read
+      // from SharedPreferences at the moment the offer was detected. Recomputing here with
+      // the JS-side STATE (loaded from localStorage) and pushing it again created a race
+      // where the bubble could be silently overwritten with stale/out-of-sync numbers that
+      // did not match the user's saved configuration.
+
       // Save to history
       addTripToHistory({
         price: trip.price,

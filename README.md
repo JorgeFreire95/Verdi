@@ -129,6 +129,9 @@ gantt
     section Sprint 17: Corrección de Lectura y Overlay
     Selección de ventana real de la app conductora :done, s28, 2026-09-11, 1d
     Parser tolerante para formatos Cabify       :done, s29, 2026-09-11, 1d
+    section Sprint 18: Config Autoritativa y Estabilidad de Lectura
+    Eliminar doble escritura de la burbuja      :done, s30, 2026-09-14, 1d
+    Confirmación por doble lectura estable      :done, s31, 2026-09-14, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -183,6 +186,9 @@ gantt
 * **Sprint 17: Corrección de Lectura y Overlay (1 día) — ✅ Completado**
   * **Sprint Goal:** Resolver los casos en que no se leía el viaje, el overlay mostraba guiones y la burbuja no cambiaba de color al estar Verdi por encima de la app conductora.
   * **Entregable:** APK que selecciona la ventana de accesibilidad perteneciente a Uber/DiDi/Cabify, libera correctamente el árbol leído y acepta formatos de ruta con o sin paréntesis, como `A 9 min (7.5 km)` y `Viaje: 17 min (7.2 km)`.
+* **Sprint 18: Config Autoritativa y Estabilidad de Lectura (1 día) — ✅ Completado**
+  * **Sprint Goal:** Eliminar la carrera que sobrescribía la burbuja con datos fuera de sincronía con la configuración del conductor, y evitar que el análisis se dispare sobre valores parciales mientras la tarjeta de oferta aún se anima.
+  * **Entregable:** APK sin doble escritura de la burbuja (solo el nativo la actualiza con la config autoritativa) y con confirmación de oferta por doble lectura estable antes de calcular la rentabilidad.
 
 ---
 
@@ -199,6 +205,22 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.18.0 — Sprint 18 (2026-09-14)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `main.js` | Al recibir un viaje, `VerdiAccessibilityService.kt` ya actualizaba la burbuja nativa con la configuración autoritativa guardada en `SharedPreferences`, pero `main.js` recalculaba el mismo viaje con su propio `STATE` (cargado de `localStorage`) y volvía a escribir la burbuja vía `VerdiPlugin.updateBubbleState()`. Esta doble escritura podía dejar el panel `VERDI DETALLE` mostrando cifras que no correspondían a los costos configurados por el conductor en la pestaña de Costos. | Se eliminó la llamada redundante a `VerdiPlugin.updateBubbleState()` desde `main.js`; solo el lado nativo actualiza la burbuja. |
+| 2 | `VerdiAccessibilityService.kt` | El debounce de 350 ms no era suficiente cuando la tarjeta de oferta seguía redibujándose (por ejemplo, un contador de tiempo para aceptar el viaje), pudiendo capturar un precio o distancia intermedio antes de que el valor final terminara de renderizarse. | Se separó la detección pura (`detectTripCandidate`) de la evaluación (`evaluateScanResult`), que ahora exige dos lecturas consecutivas (~300 ms) con el mismo precio y distancia antes de disparar el cálculo de rentabilidad, con un límite de reintentos como salvaguarda. |
+
+#### ✨ Mejoras
+- **Configuración siempre respetada:** el detalle de la burbuja (`Precio Oferta`, `Gasto Gasolina`, `Ganancia Neta`) refleja de forma consistente los valores de costos guardados por el conductor, sin sobrescrituras concurrentes desde el WebView.
+- **Lectura más confiable de ofertas animadas:** se reduce el riesgo de calcular sobre un precio o distancia parcial mientras la tarjeta de Uber/DiDi/Cabify todavía se está renderizando.
+- **Validación de compilación:** el módulo Kotlin fue compilado correctamente con `compileDebugKotlin` y el JavaScript fue validado con `node --check`.
+
+---
 
 ### v1.17.0 — Sprint 17 (2026-09-11)
 
