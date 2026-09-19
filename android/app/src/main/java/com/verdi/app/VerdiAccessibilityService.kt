@@ -70,6 +70,9 @@ class VerdiAccessibilityService : AccessibilityService() {
                             Log.d(TAG, "Poll detected app change: $activeApp -> $cleanName (pkg=$pkg)")
                             commitActiveApp(cleanName)
                         }
+                        if (cleanName != null && cleanName != "Ninguna") {
+                            scheduleContentScan(pkg)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -296,9 +299,7 @@ class VerdiAccessibilityService : AccessibilityService() {
             // Debounce: cancel any pending scan and schedule a fresh one. This ensures we
             // read the tree only after the offer card UI has settled, avoiding stale/partial
             // values (like an intermediate "CLP 600" before the final "CLP 3,425" appears).
-            pendingScanPkg = pkgToScan
-            scanHandler.removeCallbacks(scanRunnable)
-            scanHandler.postDelayed(scanRunnable, SCAN_DEBOUNCE_MS)
+            scheduleContentScan(pkgToScan)
         }
         
         // ── Fallback: Always check root if event didn't trigger a known rideshare app ──
@@ -322,6 +323,12 @@ class VerdiAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "Fallback detection error", e)
             }
         }
+    }
+
+    private fun scheduleContentScan(pkg: String) {
+        pendingScanPkg = pkg
+        scanHandler.removeCallbacks(scanRunnable)
+        scanHandler.postDelayed(scanRunnable, SCAN_DEBOUNCE_MS)
     }
 
     // ── Performs the actual accessibility tree scan for a rideshare package. ──
@@ -632,7 +639,6 @@ class VerdiAccessibilityService : AccessibilityService() {
     private fun containsIgnoredMoneyContext(text: String): Boolean {
         val lowered = text.lowercase()
         return lowered.contains("/km") ||
-            lowered.contains("estimad") ||
             lowered.contains("tarjeta") ||
             lowered.contains("efectivo") ||
             lowered.contains("cash") ||

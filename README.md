@@ -4,6 +4,22 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 ---
 
+## 🔎 Estado actual de diagnóstico (2026-09-18)
+
+La cadena de lectura y actualización visual ya está implementada y el APK debug compila correctamente. Durante las pruebas se detectó que el teléfono utilizado no tenía habilitado el servicio de accesibilidad de Verdi (`Enabled services:{}`), por lo que Android no estaba ejecutando `VerdiAccessibilityService`: sin este permiso no es posible leer ofertas ni calcular un color.
+
+Antes de probar una oferta, es obligatorio confirmar en el teléfono:
+
+1. **Burbuja flotante:** Verdi puede mostrarse sobre otras aplicaciones.
+2. **Lectura de pantalla:** `Verdi — Lectura de Pantalla` está activada en Ajustes > Accesibilidad.
+3. **Servicio iniciado:** la tarjeta *Burbuja de Servicio* indica que está iniciada.
+
+Como refuerzo, el servicio ahora vuelve a escanear periódicamente la ventana de Uber, DiDi o Cabify aunque la aplicación conductora no emita un evento de contenido. También se corrigió el parser para no descartar textos como `Tarifa estimada`.
+
+> Si el semáforo continúa en grafito y no aparece ningún viaje, comprobar primero que Verdi figure dentro de **Servicios habilitados** en `adb shell dumpsys accessibility`. El APK compilado se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+---
+
 ## 🏛️ Arquitectura de 3 Capas (3-Tier Architecture)
 
 El software de Verdi está estructurado siguiendo el patrón de arquitectura de 3 capas para asegurar el desacoplamiento del código, facilitando el desarrollo y la escalabilidad del sistema:
@@ -132,6 +148,9 @@ gantt
     section Sprint 18: Config Autoritativa y Estabilidad de Lectura
     Eliminar doble escritura de la burbuja      :done, s30, 2026-09-14, 1d
     Confirmación por doble lectura estable      :done, s31, 2026-09-14, 1d
+    section Sprint 19: Diagnóstico de Servicio y Lectura Continua
+    Escaneo periódico sin depender de eventos Cabify :done, s32, 2026-09-18, 1d
+    Parser conserva textos de tarifa estimada    :done, s33, 2026-09-18, 1d
 ```
 
 * **Sprint 1: Capa de Presentación & Historial (Duración: 2 Semanas)**
@@ -189,6 +208,9 @@ gantt
 * **Sprint 18: Config Autoritativa y Estabilidad de Lectura (1 día) — ✅ Completado**
   * **Sprint Goal:** Eliminar la carrera que sobrescribía la burbuja con datos fuera de sincronía con la configuración del conductor, y evitar que el análisis se dispare sobre valores parciales mientras la tarjeta de oferta aún se anima.
   * **Entregable:** APK sin doble escritura de la burbuja (solo el nativo la actualiza con la config autoritativa) y con confirmación de oferta por doble lectura estable antes de calcular la rentabilidad.
+* **Sprint 19: Diagnóstico de Servicio y Lectura Continua (1 día) — ✅ Completado**
+  * **Sprint Goal:** Evitar que una oferta quede sin leer cuando la app conductora no emite eventos de contenido y corregir el descarte accidental de textos de precio válidos.
+  * **Entregable:** APK con escaneo periódico mientras Uber/DiDi/Cabify está en primer plano, parser compatible con etiquetas como `Tarifa estimada` y documentación explícita del permiso obligatorio de accesibilidad.
 
 ---
 
@@ -219,6 +241,23 @@ gantt
 - **Configuración siempre respetada:** el detalle de la burbuja (`Precio Oferta`, `Gasto Gasolina`, `Ganancia Neta`) refleja de forma consistente los valores de costos guardados por el conductor, sin sobrescrituras concurrentes desde el WebView.
 - **Lectura más confiable de ofertas animadas:** se reduce el riesgo de calcular sobre un precio o distancia parcial mientras la tarjeta de Uber/DiDi/Cabify todavía se está renderizando.
 - **Validación de compilación:** el módulo Kotlin fue compilado correctamente con `compileDebugKotlin` y el JavaScript fue validado con `node --check`.
+
+---
+
+### v1.19.0 — Sprint 19 (2026-09-18)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | Algunas ofertas no se leían porque el escaneo dependía únicamente de eventos `AccessibilityEvent` enviados por la app conductora. Si Cabify no emitía eventos de contenido, no se volvía a analizar la ventana. | El polling de la app en primer plano ahora programa un escaneo de contenido cada segundo, manteniendo el debounce existente y evitando depender exclusivamente de eventos de Cabify. |
+| 2 | `VerdiAccessibilityService.kt` | Los textos que contenían `Tarifa estimada` se clasificaban como contexto monetario ignorado, por lo que el precio principal podía descartarse y nunca se generaba `onTripCaptured`. | Se eliminó esa exclusión; el parser continúa descartando contextos secundarios como `/km`, rating y medios de pago, pero acepta etiquetas de tarifa válidas. |
+| 3 | Documentación y diagnóstico | El servicio podía parecer configurado aunque Android no lo estuviera ejecutando; el diagnóstico del dispositivo mostraba `Enabled services:{}`. | Se documentó la verificación obligatoria del servicio de accesibilidad y la relación directa entre ese permiso, la lectura de viajes y el cambio de color. |
+
+#### ✨ Mejoras
+- **Lectura más resistente:** el análisis puede recuperarse aunque la app conductora no notifique cambios de contenido.
+- **Diagnóstico más claro:** el README y el flujo de instalación indican cómo comprobar que el servicio está realmente habilitado.
+- **Validación:** `assembleDebug` y `npm run build` completan correctamente.
 
 ---
 
