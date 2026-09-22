@@ -4,9 +4,9 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 ---
 
-## 🔎 Estado actual de diagnóstico (2026-09-18)
+## 🔎 Estado actual de diagnóstico (2026-09-22)
 
-La cadena de lectura y actualización visual ya está implementada y el APK debug compila correctamente. Durante las pruebas se detectó que el teléfono utilizado no tenía habilitado el servicio de accesibilidad de Verdi (`Enabled services:{}`), por lo que Android no estaba ejecutando `VerdiAccessibilityService`: sin este permiso no es posible leer ofertas ni calcular un color.
+La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado.
 
 Antes de probar una oferta, es obligatorio confirmar en el teléfono:
 
@@ -16,7 +16,17 @@ Antes de probar una oferta, es obligatorio confirmar en el teléfono:
 
 Como refuerzo, el servicio ahora vuelve a escanear periódicamente la ventana de Uber, DiDi o Cabify aunque la aplicación conductora no emita un evento de contenido. También se corrigió el parser para no descartar textos como `Tarifa estimada`.
 
-> Si el semáforo continúa en grafito y no aparece ningún viaje, comprobar primero que Verdi figure dentro de **Servicios habilitados** en `adb shell dumpsys accessibility`. El APK compilado se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
+### ✅ Criterio de captura de una oferta
+
+Verdi solo procesa una pantalla cuando encuentra:
+
+1. Un precio válido.
+2. Una distancia o ruta válida.
+3. Al menos un indicador de solicitud/oferta, por ejemplo `Aceptar`, `Rechazar`, `Nueva solicitud`, `Oferta de viaje`, `Tarifa estimada` o sus variantes en inglés.
+
+Por este motivo, una pantalla de viaje activo, historial, ganancias o navegación puede permanecer en grafito y no debe generar una lectura. Cuando una oferta desaparece, la deduplicación se libera para permitir que una nueva solicitud con el mismo precio y distancia sea analizada.
+
+> Si el semáforo continúa en grafito frente a una solicitud visible, comprobar primero que Verdi figure dentro de **Servicios habilitados** en `adb shell dumpsys accessibility`. Luego revisar que la tarjeta muestre textos accesibles de aceptar/rechazar; si la app dibuja la solicitud únicamente en Canvas/WebView, esos textos no estarán disponibles para el lector. El APK compilado se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ---
 
@@ -241,6 +251,21 @@ gantt
 - **Configuración siempre respetada:** el detalle de la burbuja (`Precio Oferta`, `Gasto Gasolina`, `Ganancia Neta`) refleja de forma consistente los valores de costos guardados por el conductor, sin sobrescrituras concurrentes desde el WebView.
 - **Lectura más confiable de ofertas animadas:** se reduce el riesgo de calcular sobre un precio o distancia parcial mientras la tarjeta de Uber/DiDi/Cabify todavía se está renderizando.
 - **Validación de compilación:** el módulo Kotlin fue compilado correctamente con `compileDebugKotlin` y el JavaScript fue validado con `node --check`.
+
+---
+
+### v1.20.0 — Corrección de capturas sin solicitud (2026-09-22)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | El parser podía tomar un precio y una ruta de cualquier pantalla de Uber, DiDi o Cabify, cambiando la burbuja aunque no hubiera una solicitud activa. | La captura ahora exige además indicadores de oferta/solicitud (`Aceptar`, `Rechazar`, `Nueva solicitud`, `Tarifa estimada`, etc.); las pantallas de viaje activo, historial o ganancias se ignoran. |
+| 2 | `VerdiAccessibilityService.kt` | Una solicitud nueva con el mismo precio y distancia que la anterior podía quedar bloqueada por la deduplicación temporal. | Al desaparecer el contexto de oferta se reinicia el estado de deduplicación, permitiendo analizar nuevamente una solicitud idéntica cuando vuelva a aparecer. |
+
+#### ✨ Validación
+- `:app:compileDebugKotlin` completado correctamente.
+- `node --check main.js` completado correctamente.
 
 ---
 

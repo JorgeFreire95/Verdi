@@ -112,6 +112,7 @@ class VerdiAccessibilityService : AccessibilityService() {
     private val STABILITY_RECHECK_MS = 300L
     private val MAX_STABILITY_RETRIES = 6
     private var stabilityRetryCount = 0
+    private var offerContextVisible = false
     private val stabilityRunnable = Runnable {
         val scanPkg = pendingStabilityPkg
         pendingStabilityPkg = null
@@ -651,6 +652,40 @@ class VerdiAccessibilityService : AccessibilityService() {
             lowered.contains("⭐")
     }
 
+    /**
+     * Price and route data can remain visible in an active trip, history or earnings screen.
+     * Only analyze a candidate when the accessibility tree also identifies an offer/request.
+     */
+    private fun containsOfferContext(texts: List<String>): Boolean {
+        val screenText = texts.joinToString(" ").lowercase(Locale.ROOT)
+        val offerMarkers = listOf(
+            "nueva solicitud",
+            "solicitud de viaje",
+            "oferta de viaje",
+            "oferta disponible",
+            "nuevo viaje",
+            "aceptar viaje",
+            "aceptar oferta",
+            "aceptar",
+            "rechazar",
+            "desliza para aceptar",
+            "deslizar para aceptar",
+            "tarifa estimada",
+            "ganancia estimada",
+            "ver oferta",
+            "ver solicitud",
+            "new trip",
+            "trip request",
+            "available trip",
+            "accept trip",
+            "accept offer",
+            "reject",
+            "slide to accept",
+            "estimated fare"
+        )
+        return offerMarkers.any(screenText::contains)
+    }
+
     private fun scorePriceCandidate(
         rawText: String,
         value: Double,
@@ -829,6 +864,11 @@ class VerdiAccessibilityService : AccessibilityService() {
             .filter { it.isNotBlank() }
             .distinct()
 
+        if (!containsOfferContext(normalizedTexts)) {
+            Log.d(TAG, "  ⏭️  No offer/request context found; ignoring screen data")
+            return null
+        }
+
         val bestPriceCandidate = collectPriceCandidates(normalizedTexts)
             .filter { it.score > 0 }
             .sortedWith(compareByDescending<PriceCandidate> { it.score }.thenByDescending { it.value }.thenBy { it.index })
@@ -857,6 +897,7 @@ class VerdiAccessibilityService : AccessibilityService() {
     private fun evaluateScanResult(pkgToScan: String, texts: List<String>) {
         val candidate = detectTripCandidate(texts)
         if (candidate == null) {
+            offerContextVisible = false
             lastStabilitySignature = null
             stabilityRetryCount = 0
             stabilityHandler.removeCallbacks(stabilityRunnable)
@@ -885,12 +926,15 @@ class VerdiAccessibilityService : AccessibilityService() {
 
     private fun dispatchTripCandidate(candidate: TripCandidate, tripSignature: String) {
         val now = System.currentTimeMillis()
-        if (tripSignature == lastCapturedSignature && now - lastCapturedTime < duplicateOfferWindowMs) {
+        if (offerContextVisible &&
+            tripSignature == lastCapturedSignature &&
+            now - lastCapturedTime < duplicateOfferWindowMs) {
             Log.d(TAG, "  ⏳ Skipping duplicate offer signature=$tripSignature")
             return
         }
         lastCapturedSignature = tripSignature
         lastCapturedTime = now
+        offerContextVisible = true
 
         runProfitabilityCalculation(candidate.price, candidate.distance, candidate.timeMins)
     }

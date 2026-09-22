@@ -102,6 +102,16 @@ gantt
     section Sprint 18: Config Autoritativa y Estabilidad de Lectura
     Eliminar doble escritura de la burbuja      :done, s18a, 2026-09-14, 1d
     Confirmación por doble lectura estable      :done, s18b, 2026-09-14, 1d
+
+    section Sprint 19: Polling y Diagnóstico de Lectura
+    Escaneo periódico sin eventos de contenido  :done, s19a, 2026-09-18, 1d
+    Aceptar textos de Tarifa estimada           :done, s19b, 2026-09-18, 1d
+    Documentar permisos de accesibilidad        :done, s19c, 2026-09-18, 1d
+
+    section Sprint 20: Validación de Solicitud Activa
+    Ignorar precios fuera de una oferta         :done, s20a, 2026-09-22, 1d
+    Reiniciar deduplicación al cerrar oferta    :done, s20b, 2026-09-22, 1d
+    Documentar criterio y diagnóstico de captura :done, s20c, 2026-09-22, 1d
 ```
 
 ---
@@ -237,3 +247,20 @@ gantt
 * **Hitos alcanzados:**
   * **Eliminación de doble escritura de la burbuja:** `VerdiAccessibilityService.kt` ya actualizaba el overlay nativo directamente con la configuración autoritativa leída de `SharedPreferences`, pero `main.js` volvía a calcular el mismo viaje con su propio `STATE` (cargado de `localStorage`) y sobrescribía la burbuja vía `VerdiPlugin.updateBubbleState()`, generando una carrera donde el panel podía terminar mostrando cifras que no correspondían a la configuración de costos guardada por el conductor. Se removió esa segunda escritura redundante desde el WebView.
   * **Confirmación de oferta por doble lectura estable:** se separó la detección pura (`detectTripCandidate`) de la evaluación con `evaluateScanResult`, que ahora exige que dos lecturas consecutivas del árbol de accesibilidad (separadas ~300 ms) arrojen el mismo precio y distancia antes de disparar el cálculo de rentabilidad, evitando actuar sobre un valor intermedio mientras la tarjeta de oferta aún se está animando en pantalla.
+
+### Sprint 19: Polling y Diagnóstico de Lectura (18 Sep)
+* **Objetivo:** Evitar que una oferta quede sin analizar cuando la aplicación conductora no emite eventos de contenido y hacer visible la causa cuando el servicio de accesibilidad no está realmente activo.
+* **Hitos alcanzados:**
+  * **Escaneo periódico de la ventana conductora:** el polling de `VerdiAccessibilityService.kt` vuelve a programar el análisis de Uber, DiDi o Cabify cada segundo, manteniendo el debounce existente y sin depender exclusivamente de eventos de contenido.
+  * **Parser compatible con `Tarifa estimada`:** se eliminó la exclusión que descartaba esa etiqueta como contexto monetario, permitiendo reconocer el precio principal de ofertas válidas.
+  * **Diagnóstico de permisos documentado:** se agregó la verificación de `Enabled services` y de la tarjeta de accesibilidad para distinguir un servicio no habilitado de un problema del parser.
+  * **Validación:** `assembleDebug` y `npm run build` completados correctamente.
+
+### Sprint 20: Validación de Solicitud Activa (22 Sep)
+* **Objetivo:** Evitar que la burbuja cambie de color por precios y rutas visibles fuera de una solicitud, y garantizar que nuevas ofertas idénticas puedan volver a analizarse.
+* **Hitos alcanzados:**
+  * **Contexto obligatorio de oferta:** `detectTripCandidate()` ahora exige precio, distancia/ruta y al menos un marcador de solicitud como `Aceptar`, `Rechazar`, `Nueva solicitud`, `Oferta de viaje` o `Tarifa estimada`, además de variantes en inglés.
+  * **Filtro de pantallas no ofertantes:** se ignoran datos de viaje activo, historial, ganancias o navegación cuando no contienen indicadores de una solicitud activa.
+  * **Deduplicación basada en ciclo de oferta:** al desaparecer el contexto de oferta se libera el estado de deduplicación, permitiendo procesar una nueva solicitud con el mismo precio y distancia.
+  * **Documentación actualizada:** `README.md` incorpora el criterio de captura y los pasos de diagnóstico para pantallas Canvas/WebView.
+  * **Validación:** `:app:compileDebugKotlin`, `node --check main.js`, `npm run build` y `git diff --check` completados correctamente.
