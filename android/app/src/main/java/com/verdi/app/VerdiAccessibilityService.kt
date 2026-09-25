@@ -655,35 +655,51 @@ class VerdiAccessibilityService : AccessibilityService() {
     /**
      * Price and route data can remain visible in an active trip, history or earnings screen.
      * Only analyze a candidate when the accessibility tree also identifies an offer/request.
+     *
+     * Markers are split into two tiers:
+     *  - STRONG markers are phrases that only appear on a real incoming-offer screen
+     *    (e.g. "nueva solicitud", "desliza para aceptar"). A single match is enough.
+     *  - WEAK markers are generic/ambiguous words ("aceptar", "rechazar", "ganancia estimada", …)
+     *    that also show up on home/earnings/settings screens (e.g. a driver-app dashboard
+     *    showing "Ganancia estimada" for the week, or a settings toggle "Aceptar pagos en
+     *    efectivo"). A single weak match is NOT enough to trust it's a real offer — we require
+     *    at least two distinct weak markers together, which realistically only happens when an
+     *    actual offer card (price + accept/reject controls) is on screen.
      */
+    private val strongOfferMarkers = listOf(
+        "nueva solicitud",
+        "solicitud de viaje",
+        "nuevo viaje",
+        "aceptar viaje",
+        "aceptar oferta",
+        "desliza para aceptar",
+        "deslizar para aceptar",
+        "new trip",
+        "trip request",
+        "accept trip",
+        "accept offer",
+        "slide to accept"
+    )
+
+    private val weakOfferMarkers = listOf(
+        "oferta de viaje",
+        "oferta disponible",
+        "aceptar",
+        "rechazar",
+        "tarifa estimada",
+        "ganancia estimada",
+        "ver oferta",
+        "ver solicitud",
+        "available trip",
+        "reject",
+        "estimated fare"
+    )
+
     private fun containsOfferContext(texts: List<String>): Boolean {
         val screenText = texts.joinToString(" ").lowercase(Locale.ROOT)
-        val offerMarkers = listOf(
-            "nueva solicitud",
-            "solicitud de viaje",
-            "oferta de viaje",
-            "oferta disponible",
-            "nuevo viaje",
-            "aceptar viaje",
-            "aceptar oferta",
-            "aceptar",
-            "rechazar",
-            "desliza para aceptar",
-            "deslizar para aceptar",
-            "tarifa estimada",
-            "ganancia estimada",
-            "ver oferta",
-            "ver solicitud",
-            "new trip",
-            "trip request",
-            "available trip",
-            "accept trip",
-            "accept offer",
-            "reject",
-            "slide to accept",
-            "estimated fare"
-        )
-        return offerMarkers.any(screenText::contains)
+        if (strongOfferMarkers.any(screenText::contains)) return true
+        val weakMatches = weakOfferMarkers.count(screenText::contains)
+        return weakMatches >= 2
     }
 
     private fun scorePriceCandidate(

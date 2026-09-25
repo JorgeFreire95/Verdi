@@ -4,7 +4,7 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 ---
 
-## 🔎 Estado actual de diagnóstico (2026-09-22)
+## 🔎 Estado actual de diagnóstico (2026-09-25)
 
 La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado.
 
@@ -16,17 +16,28 @@ Antes de probar una oferta, es obligatorio confirmar en el teléfono:
 
 Como refuerzo, el servicio ahora vuelve a escanear periódicamente la ventana de Uber, DiDi o Cabify aunque la aplicación conductora no emita un evento de contenido. También se corrigió el parser para no descartar textos como `Tarifa estimada`.
 
+### 🐛 Corrección: falso positivo de burbuja verde al abrir la app (2026-09-25)
+
+Se detectó que la burbuja se ponía en **verde apenas se abría** Uber, DiDi o Cabify, sin ninguna oferta visible en pantalla. La causa era que `containsOfferContext()` (en `VerdiAccessibilityService.kt`) validaba una oferta con una sola coincidencia de palabras genéricas como `Aceptar`, `Rechazar`, `Ganancia estimada` o `Ver oferta` — términos que también aparecen en el home, ajustes o resumen de ganancias de esas apps, sin relación con un viaje real.
+
+**Solución aplicada:** los marcadores de oferta ahora se dividen en dos niveles:
+
+* **Fuertes** (`Nueva solicitud`, `Desliza para aceptar`, `Trip request`, `Slide to accept`, etc.): frases que solo existen en una tarjeta de oferta real. Una sola coincidencia ya es suficiente.
+* **Débiles** (`Aceptar`, `Rechazar`, `Tarifa estimada`, `Ganancia estimada`, `Ver oferta`, etc.): palabras ambiguas que también aparecen en pantallas normales. Ahora se exige que aparezcan **al menos dos** simultáneamente, algo que en la práctica solo ocurre cuando hay una tarjeta de oferta real en pantalla (precio + controles de aceptar/rechazar visibles a la vez).
+
+Con este cambio, la lectura de precio/distancia/tiempo y el cálculo de rentabilidad siguen funcionando igual, pero solo se disparan ante una oferta real, no al simplemente abrir la app conductora.
+
 ### ✅ Criterio de captura de una oferta
 
 Verdi solo procesa una pantalla cuando encuentra:
 
 1. Un precio válido.
 2. Una distancia o ruta válida.
-3. Al menos un indicador de solicitud/oferta, por ejemplo `Aceptar`, `Rechazar`, `Nueva solicitud`, `Oferta de viaje`, `Tarifa estimada` o sus variantes en inglés.
+3. Al menos un indicador de solicitud/oferta: una frase fuerte por sí sola (`Nueva solicitud`, `Desliza para aceptar`, `New trip`, etc.), o dos o más frases débiles en simultáneo (`Aceptar`, `Rechazar`, `Tarifa estimada`, `Ganancia estimada`, `Ver oferta`, etc.).
 
-Por este motivo, una pantalla de viaje activo, historial, ganancias o navegación puede permanecer en grafito y no debe generar una lectura. Cuando una oferta desaparece, la deduplicación se libera para permitir que una nueva solicitud con el mismo precio y distancia sea analizada.
+Por este motivo, una pantalla de viaje activo, historial, ganancias, ajustes o navegación puede permanecer en grafito y no debe generar una lectura. Cuando una oferta desaparece, la deduplicación se libera para permitir que una nueva solicitud con el mismo precio y distancia sea analizada.
 
-> Si el semáforo continúa en grafito frente a una solicitud visible, comprobar primero que Verdi figure dentro de **Servicios habilitados** en `adb shell dumpsys accessibility`. Luego revisar que la tarjeta muestre textos accesibles de aceptar/rechazar; si la app dibuja la solicitud únicamente en Canvas/WebView, esos textos no estarán disponibles para el lector. El APK compilado se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
+> Si el semáforo continúa en grafito frente a una solicitud visible, comprobar primero que Verdi figure dentro de **Servicios habilitados** en `adb shell dumpsys accessibility`. Luego revisar que la tarjeta muestre textos accesibles de aceptar/rechazar; si la app dibuja la solicitud únicamente en Canvas/WebView, esos textos no estarán disponibles para el lector. Si la tarjeta de oferta real de tu app usa un texto distinto a los marcadores configurados, agrégalo a `strongOfferMarkers` o `weakOfferMarkers` en `VerdiAccessibilityService.kt`. El APK compilado se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ---
 
