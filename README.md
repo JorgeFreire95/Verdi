@@ -4,9 +4,9 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 ---
 
-## 🔎 Estado actual de diagnóstico (2026-09-25)
+## 🔎 Estado actual de diagnóstico (2026-09-28)
 
-La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado.
+La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado. También se corrigió el estado visual persistente: la burbuja vuelve a grafito cuando no hay una oferta activa.
 
 Antes de probar una oferta, es obligatorio confirmar en el teléfono:
 
@@ -15,6 +15,23 @@ Antes de probar una oferta, es obligatorio confirmar en el teléfono:
 3. **Servicio iniciado:** la tarjeta *Burbuja de Servicio* indica que está iniciada.
 
 Como refuerzo, el servicio ahora vuelve a escanear periódicamente la ventana de Uber, DiDi o Cabify aunque la aplicación conductora no emita un evento de contenido. También se corrigió el parser para no descartar textos como `Tarifa estimada`.
+
+### ⚠️ Diagnóstico obligatorio cuando no se lee ningún viaje
+
+Si se solicitan viajes pero Verdi no lee ninguno, no se debe interpretar el color actual de la burbuja como una lectura válida. Ejecuta:
+
+```bash
+adb shell dumpsys accessibility
+```
+
+En la salida debe aparecer `VerdiAccessibilityService` dentro de **Enabled services**. Si aparece `Enabled services:{}`, Android no tiene habilitado el lector y Verdi no puede recibir ni procesar solicitudes. En ese caso:
+
+1. Abre **Ajustes > Accesibilidad > Servicios instalados**.
+2. Activa **Verdi — Lectura de Pantalla**. Si ya estaba activa, desactívala y vuelve a activarla.
+3. Regresa a Verdi y verifica que la tarjeta **Burbuja de Servicio** indique que está iniciada.
+4. Abre nuevamente Uber, DiDi o Cabify y espera una oferta nueva.
+
+La burbuja se inicializa en grafito (`🔘`) y vuelve a ese estado al iniciar o interrumpirse el lector, o cuando desaparece el contexto de una oferta. Un color rojo persistente sin datos nuevos indica que hay que revisar el permiso de accesibilidad y reinstalar/reabrir el APK, no que se haya leído otro viaje.
 
 ### 🐛 Corrección: falso positivo de burbuja verde al abrir la app (2026-09-25)
 
@@ -38,6 +55,8 @@ Verdi solo procesa una pantalla cuando encuentra:
 Por este motivo, una pantalla de viaje activo, historial, ganancias, ajustes o navegación puede permanecer en grafito y no debe generar una lectura. Cuando una oferta desaparece, la deduplicación se libera para permitir que una nueva solicitud con el mismo precio y distancia sea analizada.
 
 > Si el semáforo continúa en grafito frente a una solicitud visible, comprobar primero que Verdi figure dentro de **Servicios habilitados** en `adb shell dumpsys accessibility`. Luego revisar que la tarjeta muestre textos accesibles de aceptar/rechazar; si la app dibuja la solicitud únicamente en Canvas/WebView, esos textos no estarán disponibles para el lector. Si la tarjeta de oferta real de tu app usa un texto distinto a los marcadores configurados, agrégalo a `strongOfferMarkers` o `weakOfferMarkers` en `VerdiAccessibilityService.kt`. El APK compilado se genera en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+El semáforo nativo vuelve a **grafito** al iniciar o interrumpirse el lector y después de detectar que ya no existe una oferta activa. Por lo tanto, un color rojo persistente no debe interpretarse como una nueva lectura: indica que hay que revisar el estado del servicio y reinstalar/reabrir el APK si `Enabled services:{}` aparece vacío en `dumpsys accessibility`.
 
 ---
 
@@ -248,6 +267,22 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.21.0 — Recuperación del estado neutral y diagnóstico de accesibilidad (2026-09-28)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | Cuando el servicio de accesibilidad no estaba habilitado (`Enabled services:{}`), no se leía ningún viaje; además, la burbuja podía conservar visualmente el color de un análisis anterior. | Se documentó la comprobación de **Enabled services** y la reactivación del permiso. El servicio ahora restablece explícitamente la burbuja a grafito al iniciar, interrumpirse o destruirse. |
+| 2 | `VerdiAccessibilityService.kt` / `FloatingBubbleService.kt` | Después de desaparecer una oferta, la burbuja podía permanecer en rojo aunque no existiera una lectura nueva. | Se agregó un estado neutral (`IDLE`) y un reinicio automático a grafito después de detectar que ya no hay una oferta activa. |
+
+#### ✨ Validación
+
+- `.\android\gradlew.bat -p .\android assembleDebug` completado correctamente.
+- APK generado en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+---
 
 ### v1.18.0 — Sprint 18 (2026-09-14)
 

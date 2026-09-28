@@ -71,6 +71,12 @@ class FloatingBubbleService : Service() {
                     Log.w(TAG, "Could not start FloatingBubbleService", e)
                 }
             }
+
+        }
+
+        /** Return the indicator to its neutral state when there is no active offer. */
+        fun resetBubble(context: Context?) {
+            updateBubble(context, "IDLE", 0.0, 0.0, 0.0, 0.0, "CLP")
         }
     }
 

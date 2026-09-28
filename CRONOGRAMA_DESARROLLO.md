@@ -112,6 +112,11 @@ gantt
     Ignorar precios fuera de una oferta         :done, s20a, 2026-09-22, 1d
     Reiniciar deduplicación al cerrar oferta    :done, s20b, 2026-09-22, 1d
     Documentar criterio y diagnóstico de captura :done, s20c, 2026-09-22, 1d
+
+    section Sprint 21: Recuperación del Estado y Diagnóstico de Accesibilidad
+    Restablecer burbuja a grafito sin oferta    :done, s21a, 2026-09-28, 1d
+    Reiniciar estado al iniciar/interrumpir servicio :done, s21b, 2026-09-28, 1d
+    Documentar Enabled services y reactivación :done, s21c, 2026-09-28, 1d
 ```
 
 ---
@@ -264,3 +269,12 @@ gantt
   * **Deduplicación basada en ciclo de oferta:** al desaparecer el contexto de oferta se libera el estado de deduplicación, permitiendo procesar una nueva solicitud con el mismo precio y distancia.
   * **Documentación actualizada:** `README.md` incorpora el criterio de captura y los pasos de diagnóstico para pantallas Canvas/WebView.
   * **Validación:** `:app:compileDebugKotlin`, `node --check main.js`, `npm run build` y `git diff --check` completados correctamente.
+
+### Sprint 21: Recuperación del Estado y Diagnóstico de Accesibilidad (28 Sep)
+* **Objetivo:** Resolver el caso en que no se lee ninguna solicitud cuando Android no tiene habilitado el servicio de accesibilidad y evitar que la burbuja permanezca en rojo por conservar el resultado de una oferta anterior.
+* **Hitos alcanzados:**
+  * **Estado neutral explícito:** `FloatingBubbleService.kt` incorpora el estado `IDLE`, que muestra la burbuja en grafito (`🔘`) sin datos de oferta.
+  * **Reinicio al perder la oferta:** `VerdiAccessibilityService.kt` programa el retorno a grafito después de detectar que ya no existe contexto de solicitud activa.
+  * **Reinicio en ciclos de servicio:** la burbuja se restablece al conectar, interrumpir o destruir el servicio de accesibilidad, evitando colores stale después de reinicios.
+  * **Diagnóstico operativo:** `README.md` documenta cómo comprobar `Enabled services` con `adb shell dumpsys accessibility` y cómo desactivar/reactivar `Verdi — Lectura de Pantalla` cuando la lista aparece vacía.
+  * **Validación:** `.\android\gradlew.bat -p .\android assembleDebug` y `git diff --check` completados correctamente.

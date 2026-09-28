@@ -113,6 +113,14 @@ class VerdiAccessibilityService : AccessibilityService() {
     private val MAX_STABILITY_RETRIES = 6
     private var stabilityRetryCount = 0
     private var offerContextVisible = false
+    private val idleResetHandler = Handler(Looper.getMainLooper())
+    private val IDLE_RESET_DELAY_MS = 1500L
+    private val idleResetRunnable = Runnable {
+        if (!offerContextVisible) {
+            FloatingBubbleService.resetBubble(applicationContext)
+            Log.d(TAG, "No active offer found; bubble returned to neutral state")
+        }
+    }
     private val stabilityRunnable = Runnable {
         val scanPkg = pendingStabilityPkg
         pendingStabilityPkg = null
@@ -178,6 +186,9 @@ class VerdiAccessibilityService : AccessibilityService() {
         isServiceRunning = true
         activeApp = "Ninguna"
         Log.d(TAG, "✨ onServiceConnected - Accessibility Service is NOW ACTIVE")
+        offerContextVisible = false
+        idleResetHandler.removeCallbacks(idleResetRunnable)
+        FloatingBubbleService.resetBubble(applicationContext)
 
         // Programmatically configure the service to receive ALL window events.
         // This is more reliable than the XML config on some OEM devices (OPPO/ColorOS).
@@ -917,6 +928,8 @@ class VerdiAccessibilityService : AccessibilityService() {
             lastStabilitySignature = null
             stabilityRetryCount = 0
             stabilityHandler.removeCallbacks(stabilityRunnable)
+            idleResetHandler.removeCallbacks(idleResetRunnable)
+            idleResetHandler.postDelayed(idleResetRunnable, IDLE_RESET_DELAY_MS)
             return
         }
 
@@ -1001,8 +1014,10 @@ class VerdiAccessibilityService : AccessibilityService() {
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
+        idleResetHandler.removeCallbacks(idleResetRunnable)
         scanHandler.removeCallbacks(scanRunnable)
         stabilityHandler.removeCallbacks(stabilityRunnable)
+        FloatingBubbleService.resetBubble(applicationContext)
         Log.w(TAG, "⚠️  onInterrupt - Accessibility Service was INTERRUPTED")
         VerdiPlugin.onAppConnected(activeApp)
     }
@@ -1013,8 +1028,10 @@ class VerdiAccessibilityService : AccessibilityService() {
         activeApp = "Ninguna"
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
+        idleResetHandler.removeCallbacks(idleResetRunnable)
         scanHandler.removeCallbacks(scanRunnable)
         stabilityHandler.removeCallbacks(stabilityRunnable)
+        FloatingBubbleService.resetBubble(applicationContext)
         VerdiPlugin.onAppConnected(activeApp)
         try {
             stopForeground(true)
