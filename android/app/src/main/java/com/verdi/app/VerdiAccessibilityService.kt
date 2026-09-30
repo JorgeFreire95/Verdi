@@ -667,15 +667,16 @@ class VerdiAccessibilityService : AccessibilityService() {
      * Price and route data can remain visible in an active trip, history or earnings screen.
      * Only analyze a candidate when the accessibility tree also identifies an offer/request.
      *
-     * Markers are split into two tiers:
+     * Markers are split by how specifically they identify an incoming offer:
      *  - STRONG markers are phrases that only appear on a real incoming-offer screen
      *    (e.g. "nueva solicitud", "desliza para aceptar"). A single match is enough.
+     *  - OFFER markers identify an offer fare or available trip. A single match is enough
+     *    because candidate detection also requires both a valid price and route.
      *  - WEAK markers are generic/ambiguous words ("aceptar", "rechazar", "ganancia estimada", …)
      *    that also show up on home/earnings/settings screens (e.g. a driver-app dashboard
      *    showing "Ganancia estimada" for the week, or a settings toggle "Aceptar pagos en
      *    efectivo"). A single weak match is NOT enough to trust it's a real offer — we require
-     *    at least two distinct weak markers together, which realistically only happens when an
-     *    actual offer card (price + accept/reject controls) is on screen.
+     *    at least two distinct weak markers together.
      */
     private val strongOfferMarkers = listOf(
         "nueva solicitud",
@@ -693,24 +694,40 @@ class VerdiAccessibilityService : AccessibilityService() {
     )
 
     private val weakOfferMarkers = listOf(
-        "oferta de viaje",
-        "oferta disponible",
         "aceptar",
         "rechazar",
-        "tarifa estimada",
         "ganancia estimada",
         "ver oferta",
         "ver solicitud",
+        "reject"
+    )
+
+    private val offerLabelMarkers = listOf(
+        "oferta de viaje",
+        "oferta disponible",
+        "tarifa estimada",
         "available trip",
-        "reject",
         "estimated fare"
     )
 
     private fun containsOfferContext(texts: List<String>): Boolean {
         val screenText = texts.joinToString(" ").lowercase(Locale.ROOT)
-        if (strongOfferMarkers.any(screenText::contains)) return true
+        val strongMarker = strongOfferMarkers.firstOrNull(screenText::contains)
+        if (strongMarker != null) {
+            Log.d(TAG, "  📋 Offer context matched strong marker: '$strongMarker'")
+            return true
+        }
+        val offerLabel = offerLabelMarkers.firstOrNull(screenText::contains)
+        if (offerLabel != null) {
+            Log.d(TAG, "  📋 Offer context matched explicit offer label: '$offerLabel'")
+            return true
+        }
         val weakMatches = weakOfferMarkers.count(screenText::contains)
-        return weakMatches >= 2
+        if (weakMatches >= 2) {
+            Log.d(TAG, "  📋 Offer context matched $weakMatches generic markers")
+            return true
+        }
+        return false
     }
 
     private fun scorePriceCandidate(

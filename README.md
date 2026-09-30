@@ -37,10 +37,11 @@ La burbuja se inicializa en grafito (`🔘`) y vuelve a ese estado al iniciar o 
 
 Se detectó que la burbuja se ponía en **verde apenas se abría** Uber, DiDi o Cabify, sin ninguna oferta visible en pantalla. La causa era que `containsOfferContext()` (en `VerdiAccessibilityService.kt`) validaba una oferta con una sola coincidencia de palabras genéricas como `Aceptar`, `Rechazar`, `Ganancia estimada` o `Ver oferta` — términos que también aparecen en el home, ajustes o resumen de ganancias de esas apps, sin relación con un viaje real.
 
-**Solución aplicada:** los marcadores de oferta ahora se dividen en dos niveles:
+**Solución aplicada:** la lectura distingue tres tipos de marcadores de oferta:
 
 * **Fuertes** (`Nueva solicitud`, `Desliza para aceptar`, `Trip request`, `Slide to accept`, etc.): frases que solo existen en una tarjeta de oferta real. Una sola coincidencia ya es suficiente.
-* **Débiles** (`Aceptar`, `Rechazar`, `Tarifa estimada`, `Ganancia estimada`, `Ver oferta`, etc.): palabras ambiguas que también aparecen en pantallas normales. Ahora se exige que aparezcan **al menos dos** simultáneamente, algo que en la práctica solo ocurre cuando hay una tarjeta de oferta real en pantalla (precio + controles de aceptar/rechazar visibles a la vez).
+* **Etiquetas explícitas** (`Oferta de viaje`, `Oferta disponible`, `Tarifa estimada`, `Available trip`, `Estimated fare`): una coincidencia basta si también se detectan precio y ruta válidos.
+* **Genéricos** (`Aceptar`, `Rechazar`, `Ganancia estimada`, `Ver oferta`, etc.): pueden aparecer en pantallas normales, así que se exigen **al menos dos** simultáneamente.
 
 Con este cambio, la lectura de precio/distancia/tiempo y el cálculo de rentabilidad siguen funcionando igual, pero solo se disparan ante una oferta real, no al simplemente abrir la app conductora.
 
@@ -50,7 +51,7 @@ Verdi solo procesa una pantalla cuando encuentra:
 
 1. Un precio válido.
 2. Una distancia o ruta válida.
-3. Al menos un indicador de solicitud/oferta: una frase fuerte por sí sola (`Nueva solicitud`, `Desliza para aceptar`, `New trip`, etc.), o dos o más frases débiles en simultáneo (`Aceptar`, `Rechazar`, `Tarifa estimada`, `Ganancia estimada`, `Ver oferta`, etc.).
+3. Al menos un indicador de solicitud/oferta: una frase fuerte (`Nueva solicitud`, `Desliza para aceptar`, `New trip`, etc.) o etiqueta explícita (`Tarifa estimada`, `Oferta disponible`, etc.) por sí sola; para indicadores genéricos (`Aceptar`, `Rechazar`, `Ganancia estimada`, `Ver oferta`, etc.) se exigen dos o más simultáneos.
 
 Por este motivo, una pantalla de viaje activo, historial, ganancias, ajustes o navegación puede permanecer en grafito y no debe generar una lectura. Cuando una oferta desaparece, la deduplicación se libera para permitir que una nueva solicitud con el mismo precio y distancia sea analizada.
 
