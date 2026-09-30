@@ -33,6 +33,12 @@ En la salida debe aparecer `VerdiAccessibilityService` dentro de **Enabled servi
 
 La burbuja se inicializa en grafito (`🔘`) y vuelve a ese estado al iniciar o interrumpirse el lector, o cuando desaparece el contexto de una oferta. Un color rojo persistente sin datos nuevos indica que hay que revisar el permiso de accesibilidad y reinstalar/reabrir el APK, no que se haya leído otro viaje.
 
+### 🐛 Corrección: tarjeta "Me interesa" de Uber no se leía (2026-09-30)
+
+Con el nuevo diseño de Uber (pantalla de "ofertas cercanas"/radar de viajes), la tarjeta de oferta ya no dice `Aceptar` ni `Nueva solicitud`: su único texto de acción es **"Me interesa"**. Como ese texto no estaba en los marcadores configurados, `containsOfferContext()` descartaba la pantalla completa y Verdi no generaba ninguna lectura (burbuja en grafito/negro, todos los valores en `CLP 0`) aunque llegaran varias ofertas seguidas.
+
+**Solución aplicada:** se agregó `"me interesa"` (y `"i'm interested"`) a los marcadores fuertes de oferta, y `"/km (estimado)"` (el texto de tarifa por kilómetro visible en la tarjeta) a las etiquetas explícitas de oferta. Si tu app muestra un texto de acción distinto (por ejemplo, otra variante regional), agrégalo también a `strongOfferMarkers` u `offerLabelMarkers` en `VerdiAccessibilityService.kt`.
+
 ### 🐛 Corrección: falso positivo de burbuja verde al abrir la app (2026-09-25)
 
 Se detectó que la burbuja se ponía en **verde apenas se abría** Uber, DiDi o Cabify, sin ninguna oferta visible en pantalla. La causa era que `containsOfferContext()` (en `VerdiAccessibilityService.kt`) validaba una oferta con una sola coincidencia de palabras genéricas como `Aceptar`, `Rechazar`, `Ganancia estimada` o `Ver oferta` — términos que también aparecen en el home, ajustes o resumen de ganancias de esas apps, sin relación con un viaje real.
@@ -268,6 +274,22 @@ gantt
 ---
 
 ## 🛠️ Registro de Cambios (Changelog)
+
+### v1.22.0 — Soporte para el nuevo formato de oferta "Me interesa" de Uber (2026-09-30)
+
+#### 🐛 Bugs Corregidos
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | El nuevo diseño de Uber (lista/radar de "ofertas cercanas") muestra una tarjeta con el botón **"Me interesa"** en vez de las frases antiguas (`Aceptar`, `Nueva solicitud`, `Desliza para aceptar`). Como `containsOfferContext()` no reconocía ese texto, la oferta se descartaba por completo: la burbuja se quedaba en grafito/negro con `Precio Oferta`, `Gasto Gasolina` y `Ganancia Neta` en `CLP 0`, y no se registraba ninguna lectura aunque llegaran varios viajes (reportado como "3 viajes, 0 lectura"). | Se agregó `"me interesa"` (y su equivalente en inglés `"i'm interested"`) a `strongOfferMarkers`, y el texto de tarifa por km `"/km (estimado)"` a `offerLabelMarkers`, para que la nueva tarjeta de oferta se reconozca y dispare la lectura y el cálculo de rentabilidad. |
+
+#### ✨ Validación
+
+- `.\android\gradlew.bat -p .\android compileDebugKotlin` completado correctamente (sin errores, solo warnings preexistentes de `recycle()`/`stopForeground()`).
+- `.\android\gradlew.bat -p .\android assembleDebug` completado correctamente.
+- APK generado en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+---
 
 ### v1.21.0 — Recuperación del estado neutral y diagnóstico de accesibilidad (2026-09-28)
 

@@ -690,7 +690,12 @@ class VerdiAccessibilityService : AccessibilityService() {
         "trip request",
         "accept trip",
         "accept offer",
-        "slide to accept"
+        "slide to accept",
+        // Newer Uber driver UI ("ofertas cercanas"/trip radar list) shows a bottom-sheet card
+        // per offer with a "Me interesa" call-to-action instead of accept/reject wording.
+        "me interesa",
+        "i'm interested",
+        "im interested"
     )
 
     private val weakOfferMarkers = listOf(
@@ -707,7 +712,11 @@ class VerdiAccessibilityService : AccessibilityService() {
         "oferta disponible",
         "tarifa estimada",
         "available trip",
-        "estimated fare"
+        "estimated fare",
+        // Newer Uber offer cards show a per-km rate like "CLP339/km (estimado)" instead of
+        // the older "tarifa estimada" wording.
+        "/km (estimado)",
+        "/km (estimated)"
     )
 
     private fun containsOfferContext(texts: List<String>): Boolean {
