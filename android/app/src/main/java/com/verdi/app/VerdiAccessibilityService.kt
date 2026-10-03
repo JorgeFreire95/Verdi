@@ -358,18 +358,22 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         // The Verdi overlay can become the active accessibility window. In that
         // case rootInActiveWindow points to Verdi instead of the driver app.
-        val rootNode = findRootForPackage(pkgToScan)
-        if (rootNode == null) {
-            Log.w(TAG, "  ⚠️  rootInActiveWindow is NULL for pkg=$pkgToScan")
+        // An offer can be drawn in its own (overlay/floating) window of the driver app while
+        // the map window stays behind it. Read every window of the package and prefer the one
+        // that actually looks like an offer, so background map prices are never used.
+        val roots = findRootsForPackage(pkgToScan)
+        if (roots.isEmpty()) {
+            Log.w(TAG, "  ⚠️  No window found for pkg=$pkgToScan")
             return
         }
 
-        Log.d(TAG, "  └─ Root node packageName: ${rootNode.packageName}")
-        Log.d(TAG, "  └─ Root node childCount: ${rootNode.childCount}")
-
-        val texts = ArrayList<String>()
-        findTextNodes(rootNode, texts)
-        Log.d(TAG, "  └─ Collected ${texts.size} text nodes from tree")
+        val windowTexts = roots.map { root ->
+            ArrayList<String>().also { findTextNodes(root, it) }
+        }
+        val texts: List<String> = windowTexts.firstOrNull { list ->
+            containsOfferContext(list.map(::normalizeScreenText).filter { it.isNotBlank() })
+        } ?: windowTexts.first()
+        Log.d(TAG, "  └─ Collected ${texts.size} text nodes from ${roots.size} window(s)")
 
         if (texts.isNotEmpty()) {
             texts.forEachIndexed { idx, text ->
@@ -382,7 +386,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         try {
             evaluateScanResult(pkgToScan, texts)
         } finally {
-            rootNode.recycle()
+            roots.forEach { runCatching { it.recycle() } }
         }
     }
 
@@ -391,30 +395,29 @@ class VerdiAccessibilityService : AccessibilityService() {
      * own overlay window. Some devices report the overlay as rootInActiveWindow
      * while it is drawn above the driver app.
      */
-    private fun findRootForPackage(targetPackage: String): AccessibilityNodeInfo? {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                windows?.forEach { window ->
-                    val root = window.root ?: return@forEach
-                    val packageName = root.packageName?.toString()
-                    if (packageName.equals(targetPackage, ignoreCase = true)) {
-                        return root
-                    }
+    private fun findRootsForPackage(targetPackage: String): List<AccessibilityNodeInfo> {
+        val result = ArrayList<AccessibilityNodeInfo>()
+        try {
+            windows?.forEach { window ->
+                val root = window.root ?: return@forEach
+                if (root.packageName?.toString().equals(targetPackage, ignoreCase = true)) {
+                    result.add(root)
+                } else {
                     root.recycle()
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not inspect accessibility windows", e)
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not inspect accessibility windows", e)
         }
+        if (result.isNotEmpty()) return result
 
         val fallback = rootInActiveWindow
-        val fallbackPackage = fallback?.packageName?.toString()
-        return if (fallback != null && fallbackPackage.equals(targetPackage, ignoreCase = true)) {
-            fallback
+        if (fallback != null && fallback.packageName?.toString().equals(targetPackage, ignoreCase = true)) {
+            result.add(fallback)
         } else {
             fallback?.recycle()
-            null
         }
+        return result
     }
 
     // ── Helper: map a package name to a clean app name (null = unknown/system) ──
@@ -937,8 +940,8 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         val (detectedDistance, detectedTimeMins) = extractRouteMetrics(normalizedTexts)
 
-        if (detectedPrice != null && detectedDistance != null) {
-            return TripCandidate(detectedPrice, detectedDistance, detectedTimeMins ?: 15.0)
+        if (detectedPrice != null && detectedDistance != null && detectedDistance > 0.0 && detectedTimeMins != null) {
+            return TripCandidate(detectedPrice, detectedDistance, detectedTimeMins)
         }
         Log.w(TAG, "  ❌ No valid trip found: price=${detectedPrice} distance=${detectedDistance}")
         return null

@@ -33,6 +33,19 @@ En la salida debe aparecer `VerdiAccessibilityService` dentro de **Enabled servi
 
 La burbuja se inicializa en grafito (`🔘`) y vuelve a ese estado al iniciar o interrumpirse el lector, o cuando desaparece el contexto de una oferta. Un color rojo persistente sin datos nuevos indica que hay que revisar el permiso de accesibilidad y reinstalar/reabrir el APK, no que se haya leído otro viaje.
 
+### 🐛 Corrección: cálculo con precio del mapa y sin km; oferta flotante no leída (2026-10-02)
+
+Se observó que, sin ningún viaje, la burbuja cambiaba de color y calculaba gasto/ganancia con un valor suelto del mapa de Uber (ej. `+1300 CLP`) sin kilómetros, y que al aparecer la burbuja/tarjeta flotante de una oferta real no se leía y el color no cambiaba.
+
+**Causa:** el servicio leía solo **una** ventana de la app conductora (la primera del paquete), que con una oferta flotante suele ser el mapa de fondo, y además asumía 15 min cuando no encontraba el tiempo del viaje.
+
+**Solución aplicada** (`VerdiAccessibilityService.kt`):
+
+* `findRootsForPackage()` lee **todas** las ventanas del paquete y `performContentScan()` usa la que contiene marcadores de oferta; si ninguna los tiene, no se calcula nada.
+* `detectTripCandidate()` ahora exige precio, distancia mayor a 0 **y** tiempo leídos; ya no se usa un tiempo por defecto.
+
+**Limitación conocida:** si Uber muestra la oferta solo como notificación del sistema (heads-up fuera de la app), todavía no se lee.
+
 ### 🐛 Corrección: tarjeta "Me interesa" de Uber no se leía (2026-09-30)
 
 Con el nuevo diseño de Uber (pantalla de "ofertas cercanas"/radar de viajes), la tarjeta de oferta ya no dice `Aceptar` ni `Nueva solicitud`: su único texto de acción es **"Me interesa"**. Como ese texto no estaba en los marcadores configurados, `containsOfferContext()` descartaba la pantalla completa y Verdi no generaba ninguna lectura (burbuja en grafito/negro, todos los valores en `CLP 0`) aunque llegaran varias ofertas seguidas.
