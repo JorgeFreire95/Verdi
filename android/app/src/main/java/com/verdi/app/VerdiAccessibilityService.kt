@@ -110,8 +110,6 @@ class VerdiAccessibilityService : AccessibilityService() {
     private var pendingStabilityPkg: String? = null
     private var lastStabilitySignature: String? = null
     private val STABILITY_RECHECK_MS = 300L
-    private val MAX_STABILITY_RETRIES = 6
-    private var stabilityRetryCount = 0
     private var offerContextVisible = false
     private val idleResetHandler = Handler(Looper.getMainLooper())
     private val IDLE_RESET_DELAY_MS = 1500L
@@ -364,6 +362,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         val roots = findRootsForPackage(pkgToScan)
         if (roots.isEmpty()) {
             Log.w(TAG, "  ⚠️  No window found for pkg=$pkgToScan")
+            markOfferInactive()
             return
         }
 
@@ -953,33 +952,35 @@ class VerdiAccessibilityService : AccessibilityService() {
     private fun evaluateScanResult(pkgToScan: String, texts: List<String>) {
         val candidate = detectTripCandidate(texts)
         if (candidate == null) {
-            offerContextVisible = false
-            lastStabilitySignature = null
-            stabilityRetryCount = 0
-            stabilityHandler.removeCallbacks(stabilityRunnable)
-            idleResetHandler.removeCallbacks(idleResetRunnable)
-            idleResetHandler.postDelayed(idleResetRunnable, IDLE_RESET_DELAY_MS)
+            markOfferInactive()
             return
         }
 
         val signature = "${candidate.price.toInt()}|${String.format(Locale.US, "%.1f", candidate.distance)}"
         Log.d(TAG, "✅ Candidate trip: price=\$${candidate.price} distance=${candidate.distance}km time=${candidate.timeMins} signature=$signature")
 
-        if (signature == lastStabilitySignature || stabilityRetryCount >= MAX_STABILITY_RETRIES) {
-            // Confirmed stable across two reads (or we gave up waiting for it to settle) — proceed.
+        if (signature == lastStabilitySignature) {
+            // Only dispatch after two consecutive reads agree; never accept a changing fare.
             lastStabilitySignature = null
-            stabilityRetryCount = 0
             stabilityHandler.removeCallbacks(stabilityRunnable)
             dispatchTripCandidate(candidate, signature)
         } else {
             // Value changed since the last read (or this is the first read) — it may still be
             // mid-animation. Wait a moment and re-read the tree before trusting it.
             lastStabilitySignature = signature
-            stabilityRetryCount++
             pendingStabilityPkg = pkgToScan
             stabilityHandler.removeCallbacks(stabilityRunnable)
             stabilityHandler.postDelayed(stabilityRunnable, STABILITY_RECHECK_MS)
         }
+    }
+
+    private fun markOfferInactive() {
+        offerContextVisible = false
+        lastStabilitySignature = null
+        pendingStabilityPkg = null
+        stabilityHandler.removeCallbacks(stabilityRunnable)
+        idleResetHandler.removeCallbacks(idleResetRunnable)
+        idleResetHandler.postDelayed(idleResetRunnable, IDLE_RESET_DELAY_MS)
     }
 
     private fun dispatchTripCandidate(candidate: TripCandidate, tripSignature: String) {

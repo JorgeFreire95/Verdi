@@ -8,6 +8,13 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado. También se corrigió el estado visual persistente: la burbuja vuelve a grafito cuando no hay una oferta activa.
 
+### 🐛 Corrección: lectura transitoria y estado de oferta atascado (2026-10-04)
+
+Se corrigieron dos casos que podían dejar una lectura incorrecta o impedir que se procesara otra oferta:
+
+* Si el servicio no encuentra una ventana accesible de Uber, DiDi o Cabify, ahora libera el estado/deduplicación de la oferta anterior y programa el retorno de la burbuja a grafito.
+* Una lectura solo se procesa cuando precio y distancia coinciden en dos escaneos consecutivos. Si la tarifa sigue cambiando, Verdi espera; ya no fuerza una lectura después de varios intentos con un valor inestable.
+
 Antes de probar una oferta, es obligatorio confirmar en el teléfono:
 
 1. **Burbuja flotante:** Verdi puede mostrarse sobre otras aplicaciones.
