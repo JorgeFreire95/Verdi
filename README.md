@@ -8,6 +8,13 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado. También se corrigió el estado visual persistente: la burbuja vuelve a grafito cuando no hay una oferta activa.
 
+### 🐛 Corrección: lecturas falsas desde el mapa (2026-10-05)
+
+Verdi interpretaba como viaje cualquier número visible en pantalla (por ejemplo "CLP 350" o "1-3 min" del mapa de demanda de Uber mientras aparece "Buscando solicitud de viaje"). Ahora:
+
+* Se quitaron los marcadores genéricos `solicitud de viaje`, `nuevo viaje`, `new trip` y `trip request`.
+* La ruta solo se extrae de los segmentos de la tarjeta de oferta (`A X min (Y km)` y `Viaje: X min (Y km)`); ya no se usa cualquier `km`/`min` de la pantalla.
+* La burbuja solo analiza y cambia de color cuando se muestra el detalle del viaje, según la configuración del usuario.
 ### 🐛 Corrección: lectura transitoria y estado de oferta atascado (2026-10-04)
 
 Se corrigieron dos casos que podían dejar una lectura incorrecta o impedir que se procesara otra oferta:
@@ -295,6 +302,13 @@ gantt
 
 ## 🛠️ Registro de Cambios (Changelog)
 
+### v1.23.0 — Filtro de falsos positivos fuera de la tarjeta de oferta (2026-10-05)
+
+| # | Componente | Descripción del bug | Solución aplicada |
+|---|---|---|---|
+| 1 | `VerdiAccessibilityService.kt` | Con el mapa en "Buscando solicitud de viaje", Verdi leía cualquier número como viaje y mostraba `CLP 0`. | Se eliminaron marcadores genéricos de `strongOfferMarkers` y el respaldo genérico de `extractRouteMetrics()`; solo se leen los segmentos `A X min (Y km)` y `Viaje: X min (Y km)`. |
+
+---
 ### v1.22.0 — Soporte para el nuevo formato de oferta "Me interesa" de Uber (2026-09-30)
 
 #### 🐛 Bugs Corregidos

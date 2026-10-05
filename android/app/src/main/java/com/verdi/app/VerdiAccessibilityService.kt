@@ -682,14 +682,10 @@ class VerdiAccessibilityService : AccessibilityService() {
      */
     private val strongOfferMarkers = listOf(
         "nueva solicitud",
-        "solicitud de viaje",
-        "nuevo viaje",
         "aceptar viaje",
         "aceptar oferta",
         "desliza para aceptar",
         "deslizar para aceptar",
-        "new trip",
-        "trip request",
         "accept trip",
         "accept offer",
         "slide to accept",
@@ -878,24 +874,9 @@ class VerdiAccessibilityService : AccessibilityService() {
             return Pair(pickupSegment.distanceKm, pickupSegment.timeMins)
         }
 
-        var genericDistance: Double? = null
-        var genericTimeMins: Double? = null
-        val distPattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(km|KM|mi|mi\\.|Millas|millas)", Pattern.CASE_INSENSITIVE)
-        val timePattern = Pattern.compile("([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)", Pattern.CASE_INSENSITIVE)
-        for (text in texts) {
-            if (!containsIgnoredMoneyContext(text)) {
-                val distMatcher = distPattern.matcher(text)
-                if (distMatcher.find()) {
-                    genericDistance = parseDistanceKm(distMatcher.group(1).orEmpty()) ?: genericDistance
-                }
-            }
-
-            val timeMatcher = timePattern.matcher(text)
-            if (timeMatcher.find()) {
-                genericTimeMins = parseDurationToMinutes(timeMatcher.group(1).orEmpty(), timeMatcher.group(2).orEmpty()) ?: genericTimeMins
-            }
-        }
-        return Pair(genericDistance, genericTimeMins)
+        // Without the structured pickup/trip segments of an offer card, km/min text
+        // elsewhere (maps, heat zones like "1-3 min") must not be read as a trip.
+        return Pair(null, null)
     }
 
     private data class TripCandidate(

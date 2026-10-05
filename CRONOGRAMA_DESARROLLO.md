@@ -117,6 +117,11 @@ gantt
     Restablecer burbuja a grafito sin oferta    :done, s21a, 2026-09-28, 1d
     Reiniciar estado al iniciar/interrumpir servicio :done, s21b, 2026-09-28, 1d
     Documentar Enabled services y reactivación :done, s21c, 2026-09-28, 1d
+
+    section Sprint 22: Formato Me interesa y Filtro de Falsos Positivos
+    Reconocer tarjeta Me interesa de Uber       :done, s22a, 2026-09-30, 1d
+    Quitar marcadores genéricos Buscando solicitud :done, s22b, 2026-10-05, 1d
+    Exigir segmentos A X min / Viaje X min      :done, s22c, 2026-10-05, 1d
 ```
 
 ---
@@ -278,3 +283,12 @@ gantt
   * **Reinicio en ciclos de servicio:** la burbuja se restablece al conectar, interrumpir o destruir el servicio de accesibilidad, evitando colores stale después de reinicios.
   * **Diagnóstico operativo:** `README.md` documenta cómo comprobar `Enabled services` con `adb shell dumpsys accessibility` y cómo desactivar/reactivar `Verdi — Lectura de Pantalla` cuando la lista aparece vacía.
   * **Validación:** `.\android\gradlew.bat -p .\android assembleDebug` y `git diff --check` completados correctamente.
+
+### Sprint 22: Formato "Me interesa" y Filtro de Falsos Positivos (30 Sep - 05 Oct)
+* **Objetivo:** Reconocer la nueva tarjeta de oferta de Uber y evitar que Verdi interprete como viaje cualquier número visible en el mapa (zonas de demanda, "CLP 350", "1-3 min").
+* **Hitos alcanzados:**
+  * **Nuevo formato de oferta (30 Sep):** `"me interesa"` y `"/km (estimado)"` se agregaron como marcadores de oferta.
+  * **Marcadores acotados (05 Oct):** se eliminaron `"solicitud de viaje"`, `"nuevo viaje"`, `"new trip"` y `"trip request"`, porque la pantalla de espera "Buscando solicitud de viaje" activaba lecturas falsas.
+  * **Sin ruta genérica (05 Oct):** `extractRouteMetrics()` ya no toma cualquier `km`/`min` de la pantalla; solo acepta los segmentos `A X min (Y km)` y `Viaje: X min (Y km)` de la tarjeta de oferta.
+  * **Resultado:** la burbuja solo analiza y cambia de color cuando aparece el detalle del viaje, según la configuración del usuario.
+  * **Pendiente:** validar en dispositivo con el mapa en espera y con ofertas reales.
