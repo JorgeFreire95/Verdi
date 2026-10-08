@@ -15,6 +15,13 @@ Verdi interpretaba como viaje cualquier número visible en pantalla (por ejemplo
 * Se quitaron los marcadores genéricos `solicitud de viaje`, `nuevo viaje`, `new trip` y `trip request`.
 * La ruta solo se extrae de los segmentos de la tarjeta de oferta (`A X min (Y km)` y `Viaje: X min (Y km)`); ya no se usa cualquier `km`/`min` de la pantalla.
 * La burbuja solo analiza y cambia de color cuando se muestra el detalle del viaje, según la configuración del usuario.
+
+### 🐛 Lectura de ofertas recibidas como notificación heads-up (2026-10-06)
+
+El servicio ahora también inspecciona el texto de las notificaciones de Uber, DiDi y Cabify mediante los eventos de accesibilidad, incluyendo el contenido expandido de la notificación. Solo calcula y colorea la burbuja si el aviso identifica una solicitud/oferta y expone precio, distancia y duración; el resultado se mantiene hasta 8 segundos.
+
+**Limitación:** Android solo expone el texto que publica la aplicación. Si la notificación no incluye todos esos datos o la oferta aparece únicamente como contenido gráfico no accesible, no se puede calcular desde esa notificación.
+
 ### 🐛 Corrección: lectura transitoria y estado de oferta atascado (2026-10-04)
 
 Se corrigieron dos casos que podían dejar una lectura incorrecta o impedir que se procesara otra oferta:
@@ -58,7 +65,7 @@ Se observó que, sin ningún viaje, la burbuja cambiaba de color y calculaba gas
 * `findRootsForPackage()` lee **todas** las ventanas del paquete y `performContentScan()` usa la que contiene marcadores de oferta; si ninguna los tiene, no se calcula nada.
 * `detectTripCandidate()` ahora exige precio, distancia mayor a 0 **y** tiempo leídos; ya no se usa un tiempo por defecto.
 
-**Limitación conocida:** si Uber muestra la oferta solo como notificación del sistema (heads-up fuera de la app), todavía no se lee.
+Las ofertas heads-up se procesan cuando Android expone en el contenido de accesibilidad los datos completos del viaje. Si la notificación solo muestra información parcial o gráfica, se necesita que Uber presente la tarjeta dentro de su ventana accesible.
 
 ### 🐛 Corrección: tarjeta "Me interesa" de Uber no se leía (2026-09-30)
 

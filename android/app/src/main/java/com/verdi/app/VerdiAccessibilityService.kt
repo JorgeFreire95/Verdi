@@ -119,6 +119,12 @@ class VerdiAccessibilityService : AccessibilityService() {
             Log.d(TAG, "No active offer found; bubble returned to neutral state")
         }
     }
+    private val notificationResultHandler = Handler(Looper.getMainLooper())
+    private val NOTIFICATION_RESULT_VISIBLE_MS = 8000L
+    private val notificationResultReset = Runnable {
+        markOfferInactive()
+        Log.d(TAG, "Notification offer result expired; bubble will return to neutral state")
+    }
     private val stabilityRunnable = Runnable {
         val scanPkg = pendingStabilityPkg
         pendingStabilityPkg = null
@@ -246,6 +252,25 @@ class VerdiAccessibilityService : AccessibilityService() {
         }
         Log.d(TAG, "🔔 onAccessibilityEvent [$eventTypeStr] pkg=$pkg activeApp=$activeApp")
 
+        if (eventType == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED && isRidesharePackage(pkg)) {
+            val notificationTexts = extractNotificationTexts(event)
+            if (notificationTexts.isNotEmpty()) {
+                val candidate = detectTripCandidate(notificationTexts, allowNotificationContext = true)
+                if (candidate != null) {
+                    val signature = "${candidate.price.toInt()}|${String.format(Locale.US, "%.1f", candidate.distance)}"
+                    Log.d(TAG, "✅ Trip candidate read from $pkg notification: signature=$signature")
+                    dispatchTripCandidate(candidate, signature)
+                    notificationResultHandler.removeCallbacks(notificationResultReset)
+                    notificationResultHandler.postDelayed(
+                        notificationResultReset,
+                        NOTIFICATION_RESULT_VISIBLE_MS
+                    )
+                    return
+                }
+                Log.d(TAG, "  ⏭️ Notification from $pkg did not contain a complete offer")
+            }
+        }
+
         // ── Detection Method 1: TYPE_WINDOWS_CHANGED (most reliable on Android 9+ / OPPO) ──
         // Fires whenever any window appears/disappears. We inspect the windows list to find
         // the topmost application window — this does NOT depend on the event's packageName.
@@ -333,6 +358,36 @@ class VerdiAccessibilityService : AccessibilityService() {
                 Log.w(TAG, "Fallback detection error", e)
             }
         }
+    }
+
+    private fun isRidesharePackage(pkg: String): Boolean =
+        pkg.contains("uber", ignoreCase = true) ||
+            pkg.contains("didi", ignoreCase = true) ||
+            pkg.contains("cabify", ignoreCase = true)
+
+    private fun extractNotificationTexts(event: AccessibilityEvent): List<String> {
+        val texts = mutableListOf<String>()
+        event.text.mapNotNullTo(texts) { it?.toString() }
+
+        val notification = event.parcelableData as? Notification
+        val extras = notification?.extras
+        if (extras != null) {
+            listOf(
+                Notification.EXTRA_TITLE,
+                Notification.EXTRA_TITLE_BIG,
+                Notification.EXTRA_TEXT,
+                Notification.EXTRA_BIG_TEXT,
+                Notification.EXTRA_SUB_TEXT,
+                Notification.EXTRA_SUMMARY_TEXT,
+                Notification.EXTRA_INFO_TEXT
+            ).forEach { key ->
+                extras.getCharSequence(key)?.toString()?.let(texts::add)
+            }
+            extras.getCharSequenceArrayList(Notification.EXTRA_TEXT_LINES)
+                ?.mapNotNullTo(texts) { it?.toString() }
+        }
+
+        return texts.map(::normalizeScreenText).filter { it.isNotBlank() }.distinct()
     }
 
     private fun scheduleContentScan(pkg: String) {
@@ -717,6 +772,22 @@ class VerdiAccessibilityService : AccessibilityService() {
         "/km (estimated)"
     )
 
+    private val notificationOfferMarkers = listOf(
+        "nueva solicitud",
+        "solicitud de viaje",
+        "solicitud entrante",
+        "nuevo viaje",
+        "viaje nuevo",
+        "oferta de viaje",
+        "new request",
+        "new trip",
+        "new ride",
+        "trip request",
+        "ride request",
+        "incoming trip",
+        "incoming request"
+    )
+
     private fun containsOfferContext(texts: List<String>): Boolean {
         val screenText = texts.joinToString(" ").lowercase(Locale.ROOT)
         val strongMarker = strongOfferMarkers.firstOrNull(screenText::contains)
@@ -732,6 +803,16 @@ class VerdiAccessibilityService : AccessibilityService() {
         val weakMatches = weakOfferMarkers.count(screenText::contains)
         if (weakMatches >= 2) {
             Log.d(TAG, "  📋 Offer context matched $weakMatches generic markers")
+            return true
+        }
+        return false
+    }
+
+    private fun containsNotificationOfferContext(texts: List<String>): Boolean {
+        val notificationText = texts.joinToString(" ").lowercase(Locale.ROOT)
+        val marker = notificationOfferMarkers.firstOrNull(notificationText::contains)
+        if (marker != null) {
+            Log.d(TAG, "  📋 Notification offer context matched marker: '$marker'")
             return true
         }
         return false
@@ -888,7 +969,10 @@ class VerdiAccessibilityService : AccessibilityService() {
     // ── Pure detection: extracts a trip candidate from the current text snapshot. ──
     // Has no side effects (no dedup, no dispatch) so it can be called repeatedly for the
     // stability check without triggering anything.
-    private fun detectTripCandidate(texts: List<String>): TripCandidate? {
+    private fun detectTripCandidate(
+        texts: List<String>,
+        allowNotificationContext: Boolean = false
+    ): TripCandidate? {
         Log.d(TAG, "📊 detectTripCandidate: Processing ${texts.size} text nodes")
         if (texts.isEmpty()) {
             Log.w(TAG, "  ⚠️  No texts collected - tree may be empty or using WebView")
@@ -900,7 +984,10 @@ class VerdiAccessibilityService : AccessibilityService() {
             .filter { it.isNotBlank() }
             .distinct()
 
-        if (!containsOfferContext(normalizedTexts)) {
+        val hasOfferContext = containsOfferContext(normalizedTexts)
+        val hasNotificationOfferContext = allowNotificationContext &&
+            containsNotificationOfferContext(normalizedTexts)
+        if (!hasOfferContext && !hasNotificationOfferContext) {
             Log.d(TAG, "  ⏭️  No offer/request context found; ignoring screen data")
             return null
         }
@@ -1026,6 +1113,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
         idleResetHandler.removeCallbacks(idleResetRunnable)
+        notificationResultHandler.removeCallbacks(notificationResultReset)
         scanHandler.removeCallbacks(scanRunnable)
         stabilityHandler.removeCallbacks(stabilityRunnable)
         FloatingBubbleService.resetBubble(applicationContext)
@@ -1040,6 +1128,7 @@ class VerdiAccessibilityService : AccessibilityService() {
         pollHandler.removeCallbacks(pollRunnable)
         ningunaResetHandler.removeCallbacksAndMessages(null)
         idleResetHandler.removeCallbacks(idleResetRunnable)
+        notificationResultHandler.removeCallbacks(notificationResultReset)
         scanHandler.removeCallbacks(scanRunnable)
         stabilityHandler.removeCallbacks(stabilityRunnable)
         FloatingBubbleService.resetBubble(applicationContext)
