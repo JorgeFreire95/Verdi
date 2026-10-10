@@ -263,7 +263,10 @@ function cacheDom() {
   elements.liveMetricsContainer = document.getElementById('live-metrics-container');
   elements.liveMetricPrice = document.getElementById('live-metric-price');
   elements.liveMetricDist = document.getElementById('live-metric-dist');
+  elements.liveMetricTime = document.getElementById('live-metric-time');
+  elements.liveMetricFuel = document.getElementById('live-metric-fuel');
   elements.liveMetricProfit = document.getElementById('live-metric-profit');
+  elements.liveMetricHourly = document.getElementById('live-metric-hourly');
   
   // Stats Counters
   elements.statsTotal = document.getElementById('stats-total');
@@ -839,7 +842,10 @@ function setupNativeListeners() {
       elements.liveMetricsContainer.style.display = 'flex';
       elements.liveMetricPrice.innerText = formatCurrency(trip.price);
       elements.liveMetricDist.innerText = `${trip.distance} ${STATE.distanceUnit}`;
+      elements.liveMetricTime.innerText = `${trip.timeMins} min`;
+      elements.liveMetricFuel.innerText = `${formatCurrency(results.fuelCost)} combustible`;
       elements.liveMetricProfit.innerText = `${formatCurrency(results.netProfit)} netos`;
+      elements.liveMetricHourly.innerText = `${formatCurrency(results.hourlyRate)}/h`;
       
       let borderClass = 'graphite';
       let title = 'Oferta Grafito';

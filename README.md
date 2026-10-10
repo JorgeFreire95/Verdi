@@ -8,6 +8,12 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado. También se corrigió el estado visual persistente: la burbuja vuelve a grafito cuando no hay una oferta activa.
 
+### 🐛 Corrección: detalle de viaje incompleto o borrado al volver a grafito (2026-10-09)
+
+El panel expandido **VERDI DETALLE** ahora muestra precio, distancia, duración, gasto de combustible, ganancia neta y ganancia por hora. El dashboard muestra esos mismos datos al recibir una lectura. Cuando termina la oferta, el indicador vuelve a grafito pero conserva los datos del último viaje para poder consultarlos; una nueva lectura reemplaza el detalle anterior.
+
+**Requisito del dispositivo:** Android debe tener activado **Verdi — Lectura de Pantalla** en Ajustes > Accesibilidad. El volcado `android/dumpsys_accessibility.txt` guardado en este repositorio tiene `Enabled services:{}`; ese volcado corresponde al momento en que se tomó y no confirma el estado actual del teléfono. Si el lector está desactivado, Android no entrega a Verdi los eventos ni el texto de las ofertas.
+
 ### 🐛 Corrección: lecturas falsas desde el mapa (2026-10-05)
 
 Verdi interpretaba como viaje cualquier número visible en pantalla (por ejemplo "CLP 350" o "1-3 min" del mapa de demanda de Uber mientras aparece "Buscando solicitud de viaje"). Ahora:

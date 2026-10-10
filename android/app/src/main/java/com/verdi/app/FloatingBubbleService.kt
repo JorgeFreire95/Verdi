@@ -39,12 +39,33 @@ class FloatingBubbleService : Service() {
             val fuel: Double,
             val net: Double,
             val hourly: Double,
-            val currency: String
+            val currency: String,
+            val distance: Double,
+            val timeMins: Double
         )
+        @Volatile private var lastTripState: BubbleState? = null
 
         /** Direct call from VerdiAccessibilityService or VerdiPlugin — avoids broadcast delivery issues. */
-        fun updateBubble(context: Context?, decision: String, price: Double, fuel: Double, net: Double, hourly: Double, currency: String) {
-            val state = BubbleState(decision, price, fuel, net, hourly, currency)
+        fun updateBubble(
+            context: Context?,
+            decision: String,
+            price: Double,
+            fuel: Double,
+            net: Double,
+            hourly: Double,
+            currency: String,
+            distance: Double = 0.0,
+            timeMins: Double = 0.0
+        ) {
+            val result = BubbleState(decision, price, fuel, net, hourly, currency, distance, timeMins)
+            if (decision == "GREEN" || decision == "YELLOW" || decision == "RED") {
+                lastTripState = result
+            }
+            val state = if (decision == "IDLE") {
+                lastTripState?.copy(decision = "IDLE") ?: result
+            } else {
+                result
+            }
             pendingState = state
 
             val prefs = context?.getSharedPreferences("VerdiConfig", Context.MODE_PRIVATE)
@@ -57,7 +78,16 @@ class FloatingBubbleService : Service() {
 
             val inst = instance
             if (inst != null) {
-                inst.updateBubbleState(decision, price, fuel, net, hourly, currency)
+                inst.updateBubbleState(
+                    state.decision,
+                    state.price,
+                    state.fuel,
+                    state.net,
+                    state.hourly,
+                    state.currency,
+                    state.distance,
+                    state.timeMins
+                )
                 pendingState = null
                 return
             }
@@ -90,6 +120,9 @@ class FloatingBubbleService : Service() {
     private lateinit var textPrice: TextView
     private lateinit var textFuel: TextView
     private lateinit var textProfit: TextView
+    private lateinit var textDistance: TextView
+    private lateinit var textDuration: TextView
+    private lateinit var textHourly: TextView
 
     private lateinit var params: WindowManager.LayoutParams
     private lateinit var panelParams: WindowManager.LayoutParams
@@ -250,12 +283,18 @@ class FloatingBubbleService : Service() {
         panelLayout.addView(titleText)
 
         textPrice = createPanelLabel("Precio Oferta: --")
+        textDistance = createPanelLabel("Distancia: --")
+        textDuration = createPanelLabel("Duración: --")
         textFuel = createPanelLabel("Gasto Gasolina: --")
         textProfit = createPanelLabel("Ganancia Neta: --")
+        textHourly = createPanelLabel("Ganancia por hora: --")
 
         panelLayout.addView(textPrice)
+        panelLayout.addView(textDistance)
+        panelLayout.addView(textDuration)
         panelLayout.addView(textFuel)
         panelLayout.addView(textProfit)
+        panelLayout.addView(textHourly)
 
         // Close/minimize instruction
         val closeDescText = TextView(this).apply {
@@ -375,7 +414,16 @@ class FloatingBubbleService : Service() {
     private fun applyPendingBubbleState() {
         pendingState?.let { state ->
             Log.d(TAG, "Applying pending bubble state: ${state.decision}")
-            updateBubbleState(state.decision, state.price, state.fuel, state.net, state.hourly, state.currency)
+            updateBubbleState(
+                state.decision,
+                state.price,
+                state.fuel,
+                state.net,
+                state.hourly,
+                state.currency,
+                state.distance,
+                state.timeMins
+            )
             pendingState = null
         }
     }
@@ -385,8 +433,10 @@ class FloatingBubbleService : Service() {
         price: Double,
         fuel: Double,
         net: Double,
-        _hourly: Double,
-        currencyCode: String
+        hourly: Double,
+        currencyCode: String,
+        distance: Double,
+        timeMins: Double
     ) {
         val emoji: String
         when (decision) {
@@ -426,11 +476,16 @@ class FloatingBubbleService : Service() {
                     "EUR" -> "€"
                     else  -> "$currencyCode "
                 }
-                textPrice.text = String.format(Locale.US, "Precio Oferta: %s%,.0f", cleanCur, price)
-                textFuel.text = String.format(Locale.US, "Gasto Gasolina: %s%,.0f", cleanCur, fuel)
-                val netColor = if (net >= 0) "#10B981" else "#EF4444"
-                textProfit.setTextColor(Color.parseColor(netColor))
-                textProfit.text = String.format(Locale.US, "Ganancia Neta: %s%,.0f", cleanCur, net)
+                if (decision != "IDLE" || price > 0.0 || distance > 0.0 || timeMins > 0.0) {
+                    textPrice.text = String.format(Locale.US, "Precio Oferta: %s%,.0f", cleanCur, price)
+                    textDistance.text = String.format(Locale.US, "Distancia: %.1f km", distance)
+                    textDuration.text = String.format(Locale.US, "Duración: %.0f min", timeMins)
+                    textFuel.text = String.format(Locale.US, "Gasto Gasolina: %s%,.0f", cleanCur, fuel)
+                    val netColor = if (net >= 0) "#10B981" else "#EF4444"
+                    textProfit.setTextColor(Color.parseColor(netColor))
+                    textProfit.text = String.format(Locale.US, "Ganancia Neta: %s%,.0f", cleanCur, net)
+                    textHourly.text = String.format(Locale.US, "Ganancia por hora: %s%,.0f", cleanCur, hourly)
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Error updating panel labels", e)
             }

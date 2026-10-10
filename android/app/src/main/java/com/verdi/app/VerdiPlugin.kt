@@ -171,9 +171,11 @@ class VerdiPlugin : Plugin() {
         val net       = call.getDouble("net",       0.0)        ?: 0.0
         val hourly    = call.getDouble("hourly",    0.0)        ?: 0.0
         val currency  = call.getString("currency",  "CLP")      ?: "CLP"
+        val distance  = call.getDouble("distance",  0.0)        ?: 0.0
+        val timeMins  = call.getDouble("timeMins",  0.0)        ?: 0.0
 
         // Update FloatingBubbleService directly (avoids broadcast delivery issues)
-        FloatingBubbleService.updateBubble(context, decision, price, fuel, net, hourly, currency)
+        FloatingBubbleService.updateBubble(context, decision, price, fuel, net, hourly, currency, distance, timeMins)
         Log.d(TAG, "FloatingBubbleService.updateBubble called - Decision: $decision")
 
         val ret = JSObject()
