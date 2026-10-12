@@ -763,6 +763,7 @@ class VerdiAccessibilityService : AccessibilityService() {
     private val offerLabelMarkers = listOf(
         "oferta de viaje",
         "oferta disponible",
+        "oferta",
         "tarifa estimada",
         "available trip",
         "estimated fare",
@@ -955,8 +956,32 @@ class VerdiAccessibilityService : AccessibilityService() {
             return Pair(pickupSegment.distanceKm, pickupSegment.timeMins)
         }
 
-        // Without the structured pickup/trip segments of an offer card, km/min text
-        // elsewhere (maps, heat zones like "1-3 min") must not be read as a trip.
+        // Uber Driver's current offer card often exposes only a bare pair such as
+        // "12 min (3.4 km)" or "3.4 km · 12 min", without the "Viaje" label.
+        // This fallback is safe because detectTripCandidate already requires an
+        // offer context and a valid fare in the same screen.
+        val genericRouteRegex = Pattern.compile(
+            "([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(?\\s*(?:[·|\\-]|\\s)*\\s*([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)?|" +
+                "([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\s*(?:[·|\\-]|\\s)+\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)",
+            Pattern.CASE_INSENSITIVE
+        )
+        val genericMatcher = genericRouteRegex.matcher(joinedText)
+        if (genericMatcher.find()) {
+            val timeValue = genericMatcher.group(1) ?: genericMatcher.group(7)
+            val timeUnit = genericMatcher.group(2) ?: genericMatcher.group(8)
+            val distanceValue = genericMatcher.group(3) ?: genericMatcher.group(5)
+            if (timeValue != null && timeUnit != null && distanceValue != null) {
+                val timeMins = parseDurationToMinutes(timeValue, timeUnit)
+                val distanceKm = parseDistanceKm(distanceValue)
+                if (timeMins != null && distanceKm != null) {
+                    Log.d(TAG, "  📍 Generic route pair: ${timeMins} min / ${distanceKm} km")
+                    return Pair(distanceKm, timeMins)
+                }
+            }
+        }
+
+        // Without a structured route pair, km/min text elsewhere (maps, heat zones
+        // like "1-3 min") must not be read as a trip.
         return Pair(null, null)
     }
 
