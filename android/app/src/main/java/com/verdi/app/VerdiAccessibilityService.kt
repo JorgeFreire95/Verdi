@@ -619,13 +619,6 @@ class VerdiAccessibilityService : AccessibilityService() {
                 node.hintText?.toString()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
             }
             
-            // Also try to get viewIdResourceName for debugging
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2) {
-                node.viewIdResourceName?.takeIf { it.isNotBlank() }?.let { 
-                    texts.add("[ViewId: $it]")
-                }
-            }
-            
             for (i in 0 until node.childCount) {
                 val child = node.getChild(i)
                 if (child != null) {

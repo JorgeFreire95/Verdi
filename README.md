@@ -8,6 +8,10 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado. También se corrigió el estado visual persistente: la burbuja vuelve a grafito cuando no hay una oferta activa.
 
+### 🐛 Corrección: IDs de vistas interferían con la lectura de rutas (2026-10-14)
+
+El lector de accesibilidad añadía los IDs internos de cada vista al mismo listado de textos que usa el parser. En tarjetas donde Uber expone el tiempo y la distancia en nodos separados, esos IDs quedaban entre ambos valores y evitaban reconocer la ruta; por tanto no se generaba el viaje y tampoco se actualizaban **VERDI DETALLE** ni el color de la burbuja. Los IDs ya no se incorporan al texto analizado.
+
 ### 🐛 Corrección: overlay simplificado y lectura de ofertas de Uber (2026-10-12)
 
 El panel expandido **VERDI DETALLE** ahora muestra únicamente **Precio Oferta**, **Gasto Gasolina** y **Ganancia Neta**, para que el conductor pueda leer el resultado sin información secundaria. La distancia, duración y ganancia por hora se mantienen como datos internos para el cálculo, pero ya no se muestran en el overlay.
