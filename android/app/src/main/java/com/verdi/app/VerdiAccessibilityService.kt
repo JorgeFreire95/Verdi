@@ -451,10 +451,13 @@ class VerdiAccessibilityService : AccessibilityService() {
      */
     private fun findRootsForPackage(targetPackage: String): List<AccessibilityNodeInfo> {
         val result = ArrayList<AccessibilityNodeInfo>()
+        val targetApp = pkgToAppName(targetPackage)
         try {
             windows?.forEach { window ->
                 val root = window.root ?: return@forEach
-                if (root.packageName?.toString().equals(targetPackage, ignoreCase = true)) {
+                val rootPackage = root.packageName?.toString()
+                if (rootPackage.equals(targetPackage, ignoreCase = true) ||
+                    (targetApp != null && pkgToAppName(rootPackage.orEmpty()) == targetApp)) {
                     result.add(root)
                 } else {
                     root.recycle()
@@ -466,7 +469,10 @@ class VerdiAccessibilityService : AccessibilityService() {
         if (result.isNotEmpty()) return result
 
         val fallback = rootInActiveWindow
-        if (fallback != null && fallback.packageName?.toString().equals(targetPackage, ignoreCase = true)) {
+        val fallbackPackage = fallback?.packageName?.toString().orEmpty()
+        if (fallback != null &&
+            (fallbackPackage.equals(targetPackage, ignoreCase = true) ||
+                (targetApp != null && pkgToAppName(fallbackPackage) == targetApp))) {
             result.add(fallback)
         } else {
             fallback?.recycle()
@@ -684,7 +690,11 @@ class VerdiAccessibilityService : AccessibilityService() {
     }
 
     private fun normalizeScreenText(raw: String): String {
-        return raw.replace(Regex("\\s+"), " ").trim()
+        return raw
+            .replace('\u00A0', ' ')
+            .replace(Regex("[\\u200B-\\u200D\\uFEFF]"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     private fun looksLikeStandaloneCurrencyToken(text: String): Boolean {
@@ -955,14 +965,15 @@ class VerdiAccessibilityService : AccessibilityService() {
         // offer context and a valid fare in the same screen.
         val genericRouteRegex = Pattern.compile(
             "([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(?\\s*(?:[·|\\-]|\\s)*\\s*([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\)?|" +
-                "([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\s*(?:[·|\\-]|\\s)+\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)",
+                "([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\s*(?:[·|\\-]|\\s)+\\s*([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)|" +
+                "([0-9]+[.,]?[0-9]*)\\s*(min|mins|minutos|hr|h|hora|horas)\\s*\\(\\s*([0-9]+[.,]?[0-9]*)\\s*(km|mi|mi\\.|millas|millas?)\\s*\\)",
             Pattern.CASE_INSENSITIVE
         )
         val genericMatcher = genericRouteRegex.matcher(joinedText)
         if (genericMatcher.find()) {
-            val timeValue = genericMatcher.group(1) ?: genericMatcher.group(7)
-            val timeUnit = genericMatcher.group(2) ?: genericMatcher.group(8)
-            val distanceValue = genericMatcher.group(3) ?: genericMatcher.group(5)
+            val timeValue = genericMatcher.group(1) ?: genericMatcher.group(7) ?: genericMatcher.group(9)
+            val timeUnit = genericMatcher.group(2) ?: genericMatcher.group(8) ?: genericMatcher.group(10)
+            val distanceValue = genericMatcher.group(3) ?: genericMatcher.group(5) ?: genericMatcher.group(11)
             if (timeValue != null && timeUnit != null && distanceValue != null) {
                 val timeMins = parseDurationToMinutes(timeValue, timeUnit)
                 val distanceKm = parseDistanceKm(distanceValue)
@@ -1002,14 +1013,6 @@ class VerdiAccessibilityService : AccessibilityService() {
             .filter { it.isNotBlank() }
             .distinct()
 
-        val hasOfferContext = containsOfferContext(normalizedTexts)
-        val hasNotificationOfferContext = allowNotificationContext &&
-            containsNotificationOfferContext(normalizedTexts)
-        if (!hasOfferContext && !hasNotificationOfferContext) {
-            Log.d(TAG, "  ⏭️  No offer/request context found; ignoring screen data")
-            return null
-        }
-
         val bestPriceCandidate = collectPriceCandidates(normalizedTexts)
             .filter { it.score > 0 }
             .sortedWith(compareByDescending<PriceCandidate> { it.score }.thenByDescending { it.value }.thenBy { it.index })
@@ -1024,6 +1027,26 @@ class VerdiAccessibilityService : AccessibilityService() {
         }
 
         val (detectedDistance, detectedTimeMins) = extractRouteMetrics(normalizedTexts)
+        val hasOfferContext = containsOfferContext(normalizedTexts)
+        val hasNotificationOfferContext = allowNotificationContext &&
+            containsNotificationOfferContext(normalizedTexts)
+        val hasStructuredOfferData = bestPriceCandidate != null &&
+            detectedDistance != null &&
+            detectedDistance > 0.0 &&
+            detectedTimeMins != null &&
+            detectedTimeMins > 0.0
+
+        // Some Uber offer cards expose the fare and route in accessibility nodes but omit
+        // the CTA ("Me interesa") and every textual offer marker. The pair of a valid fare
+        // and a complete route is sufficient here because this scan is already restricted
+        // to a rideshare package.
+        if (!hasOfferContext && !hasNotificationOfferContext && !hasStructuredOfferData) {
+            Log.d(TAG, "  ⏭️  No offer/request context or complete route data found; ignoring screen data")
+            return null
+        }
+        if (!hasOfferContext && !hasNotificationOfferContext) {
+            Log.d(TAG, "  📋 Using structured fare + route data without an explicit offer marker")
+        }
 
         if (detectedPrice != null && detectedDistance != null && detectedDistance > 0.0 && detectedTimeMins != null) {
             return TripCandidate(detectedPrice, detectedDistance, detectedTimeMins)
