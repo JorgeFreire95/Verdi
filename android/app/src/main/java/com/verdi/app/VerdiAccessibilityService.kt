@@ -423,11 +423,36 @@ class VerdiAccessibilityService : AccessibilityService() {
 
         val windowTexts = roots.map { root ->
             ArrayList<String>().also { findTextNodes(root, it) }
+                .map(::normalizeScreenText)
+                .filter { it.isNotBlank() }
+                .distinct()
         }
-        val texts: List<String> = windowTexts.firstOrNull { list ->
-            containsOfferContext(list.map(::normalizeScreenText).filter { it.isNotBlank() })
-        } ?: windowTexts.first()
-        Log.d(TAG, "  └─ Collected ${texts.size} text nodes from ${roots.size} window(s)")
+        val offerWindows = windowTexts.filter(::containsOfferContext)
+        val offerWindowWithCandidate = offerWindows.firstOrNull {
+            detectTripCandidate(it) != null
+        }
+        val combinedOfferTexts = if (offerWindowWithCandidate == null && offerWindows.isNotEmpty()) {
+            windowTexts.flatten().distinct().takeIf { detectTripCandidate(it) != null }
+        } else {
+            null
+        }
+        val structuredWindowWithCandidate = if (
+            offerWindowWithCandidate == null && combinedOfferTexts == null
+        ) {
+            windowTexts.firstOrNull { detectTripCandidate(it) != null }
+        } else {
+            null
+        }
+        val texts = offerWindowWithCandidate
+            ?: combinedOfferTexts
+            ?: structuredWindowWithCandidate
+            ?: offerWindows.firstOrNull()
+            ?: windowTexts.first()
+        Log.d(
+            TAG,
+            "  └─ Selected ${texts.size} text nodes from ${roots.size} window(s); " +
+                "offerWindows=${offerWindows.size}, combined=${texts === combinedOfferTexts}"
+        )
 
         if (texts.isNotEmpty()) {
             texts.forEachIndexed { idx, text ->
@@ -749,6 +774,8 @@ class VerdiAccessibilityService : AccessibilityService() {
         "slide to accept",
         // Newer Uber driver UI ("ofertas cercanas"/trip radar list) shows a bottom-sheet card
         // per offer with a "Me interesa" call-to-action instead of accept/reject wording.
+        "radar de solicitud de viaje",
+        "trip radar",
         "me interesa",
         "i'm interested",
         "im interested"

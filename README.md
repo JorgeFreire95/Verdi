@@ -8,6 +8,10 @@ Verdi es una aplicación móvil híbrida diseñada para conductores de aplicacio
 
 La cadena de lectura, validación de solicitudes y actualización visual está implementada y el APK debug compila correctamente. El servicio ya no cambia el color por encontrar solamente un precio y una distancia en pantalla: exige señales de una oferta activa antes de calcular y mostrar un resultado. También se corrigió el estado visual persistente: la burbuja vuelve a grafito cuando no hay una oferta activa.
 
+### 🐛 Corrección: datos de oferta repartidos entre ventanas accesibles (2026-10-15)
+
+Android puede exponer el marcador de oferta, el precio y la ruta en ventanas accesibles separadas de la misma aplicación conductora. El lector ya no se limita a la primera ventana: prioriza una ventana que contenga una oferta completa y, si el marcador de oferta está presente pero los datos están repartidos, analiza el texto combinado de las ventanas de esa aplicación. En Uber, también reconoce el encabezado **Radar de solicitud de viaje** como marcador de oferta aunque el botón **Me interesa** no se exponga al servicio de accesibilidad. Sin marcador, solo acepta precio y ruta completos encontrados juntos en una misma ventana para evitar leer cifras sueltas del mapa.
+
 ### 🐛 Corrección: IDs de vistas interferían con la lectura de rutas (2026-10-14)
 
 El lector de accesibilidad añadía los IDs internos de cada vista al mismo listado de textos que usa el parser. En tarjetas donde Uber expone el tiempo y la distancia en nodos separados, esos IDs quedaban entre ambos valores y evitaban reconocer la ruta; por tanto no se generaba el viaje y tampoco se actualizaban **VERDI DETALLE** ni el color de la burbuja. Los IDs ya no se incorporan al texto analizado.
