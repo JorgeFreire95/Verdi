@@ -997,7 +997,8 @@ class VerdiAccessibilityService : AccessibilityService() {
             Pattern.CASE_INSENSITIVE
         )
         val genericMatcher = genericRouteRegex.matcher(joinedText)
-        if (genericMatcher.find()) {
+        val genericSegments = mutableListOf<RouteSegment>()
+        while (genericMatcher.find() && genericSegments.size < 2) {
             val timeValue = genericMatcher.group(1) ?: genericMatcher.group(7) ?: genericMatcher.group(9)
             val timeUnit = genericMatcher.group(2) ?: genericMatcher.group(8) ?: genericMatcher.group(10)
             val distanceValue = genericMatcher.group(3) ?: genericMatcher.group(5) ?: genericMatcher.group(11)
@@ -1005,10 +1006,15 @@ class VerdiAccessibilityService : AccessibilityService() {
                 val timeMins = parseDurationToMinutes(timeValue, timeUnit)
                 val distanceKm = parseDistanceKm(distanceValue)
                 if (timeMins != null && distanceKm != null) {
-                    Log.d(TAG, "  📍 Generic route pair: ${timeMins} min / ${distanceKm} km")
-                    return Pair(distanceKm, timeMins)
+                    genericSegments += RouteSegment(distanceKm, timeMins)
                 }
             }
+        }
+        if (genericSegments.isNotEmpty()) {
+            val distanceKm = genericSegments.sumOf { it.distanceKm }
+            val timeMins = genericSegments.sumOf { it.timeMins }
+            Log.d(TAG, "  📍 Generic route segments: ${genericSegments.size}, ${timeMins} min / ${distanceKm} km")
+            return Pair(distanceKm, timeMins)
         }
 
         // Without a structured route pair, km/min text elsewhere (maps, heat zones
@@ -1041,8 +1047,8 @@ class VerdiAccessibilityService : AccessibilityService() {
             .distinct()
 
         val bestPriceCandidate = collectPriceCandidates(normalizedTexts)
-            .filter { it.score > 0 }
-            .sortedWith(compareByDescending<PriceCandidate> { it.score }.thenByDescending { it.value }.thenBy { it.index })
+            .filter { it.score > 0 && it.value > 0.0 }
+            .sortedWith(compareByDescending<PriceCandidate> { it.score }.thenBy { it.index }.thenByDescending { it.value })
             .firstOrNull()
 
         val detectedPrice = bestPriceCandidate?.value
